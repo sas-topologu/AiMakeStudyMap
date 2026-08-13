@@ -1,0 +1,21 @@
+{
+  "name": "knowledge-starmap",
+  "version": "0.1.0",
+  "private": true,
+  "description": "知识星图 — 公益知识图谱学习平台",
+  "workspaces": [
+    "server",
+    "web",
+    "content"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev -w server",
+    "dev:web": "npm run dev -w web",
+    "build": "npm run build -w web",
+    "start": "node server/src/index.js",
+    "import": "node content/tools/import.js",
+    "scan": "node content/tools/scan.js",
+    "test": "npm test -w server",
+    "deploy": "npm run build && npm run import && npm start"
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "id": "math.function.linear",
+  "title": "一次函数",
+  "subject": "数学",
+  "category": "自然科学",
+  "credibility": "verified",
+  "difficulty": 3,
+  "summary": "形如 y=kx+b（k≠0）的函数，图象是一条直线；本卡介绍一次函数的概念、图象性质与简单应用。",
+  "sections": [
+    {
+      "heading": "一次函数与正比例函数",
+      "body": "形如 y=kx+b（k、b 为常数，k≠0）的函数叫做[[一次函数]]。当 b=0 时，y=kx 叫做[[正比例函数]]，是特殊的一次函数，其图象经过原点。"
+    },
+    {
+      "heading": "图象与性质",
+      "body": "一次函数的图象是一条直线。k 叫做[[斜率]]，决定直线的倾斜方向与程度：k>0 时 y 随 x 增大而增大，k<0 时 y 随 x 增大而减小。b 叫做[[截距]]，是直线与 y 轴交点的纵坐标。"
+    },
+    {
+      "heading": "一次函数的应用",
+      "body": "许多实际问题中两个量成一次函数关系，如匀速运动中路程与时间、弹簧伸长与拉力。可由两组对应值用待定系数法求出解析式。一次函数与[[一元二次方程]]的图象解法也有联系。"
+    }
+  ],
+  "terms": {
+    "一次函数": "形如 y=kx+b（k≠0）的函数，图象是一条直线。",
+    "正比例函数": "形如 y=kx（k≠0）的函数，图象过原点，是特殊的一次函数。",
+    "斜率": "一次函数 y=kx+b 中 k 的值，表示直线的倾斜程度。",
+    "截距": "一次函数 y=kx+b 中 b 的值，即直线与 y 轴交点的纵坐标。",
+    "一元二次方程": "只含一个未知数且最高次数为 2 的方程，可借助函数图象理解其根。"
+  },
+  "relations": {
+    "prerequisites": ["math.function.concept"],
+    "related": ["math.equation.quadratic"]
+  },
+  "questionBank": [
+    {
+      "id": "q1",
+      "type": "choice",
+      "stem": "一次函数的一般形式是",
+      "options": ["y=kx+b（k≠0）", "y=kx²", "y=k/x", "y=kx+b（k=0）"],
+      "answer": 0,
+      "explanation": "y=kx+b 且 k≠0；k=0 时为常数函数，不是一次函数。",
+      "difficulty": 1
+    },
+    {
+      "id": "q2",
+      "type": "choice",
+      "stem": "正比例函数 y=kx 的图象一定经过",
+      "options": ["原点", "点 (0,1)", "点 (1,0)", "点 (1,1)"],
+      "answer": 0,
+      "explanation": "当 x=0 时 y=0，故图象过原点。",
+      "difficulty": 1
+    },
+    {
+      "id": "q3",
+      "type": "choice",
+      "stem": "直线 y=2x+1 与 y 轴的交点坐标是",
+      "options": ["(0,1)", "(1,0)", "(0,2)", "(2,1)"],
+      "answer": 0,
+      "explanation": "与 y 轴交点处 x=0，y=1，即 (0,1)。",
+      "difficulty": 2
+    },
+    {
+      "id": "q4",
+      "type": "choice",
+      "stem": "一次函数 y=kx+b 中，当 k>0 时，y 随 x 的增大而",
+      "options": ["增大", "减小", "不变", "先增后减"],
+      "answer": 0,
+      "explanation": "k>0 直线上升，y 随 x 增大而增大；k<0 则相反。",
+      "difficulty": 2
+    },
+    {
+      "id": "q5",
+      "type": "fill",
+      "stem": "一次函数 y=3x-2 的斜率是 ____",
+      "answer": "3",
+      "explanation": "斜率即 k 的值，k=3。",
+      "difficulty": 1
+    },
+    {
+      "id": "q6",
+      "type": "fill",
+      "stem": "直线 y=x+1 经过点 (2, ____)（填纵坐标）",
+      "answer": "3",
+      "explanation": "代入 x=2 得 y=2+1=3。",
+      "difficulty": 2
+    }
+  ],
+  "version": 1
+}

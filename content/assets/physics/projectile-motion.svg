@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300">
+  <!-- 平抛运动：水平匀速、竖直自由落体，轨迹为抛物线，速度沿切线方向 -->
+  <rect width="480" height="300" fill="#0d1226" rx="8"/>
+
+  <!-- 坐标轴：x 水平、y 竖直向下 -->
+  <line x1="70" y1="45" x2="450" y2="45" stroke="#8892b0" stroke-width="1.5"/>
+  <line x1="70" y1="45" x2="70" y2="265" stroke="#8892b0" stroke-width="1.5"/>
+  <polygon points="450,45 442,41 442,49" fill="#8892b0"/>
+  <polygon points="70,265 66,257 74,257" fill="#8892b0"/>
+  <text x="454" y="49" fill="#8892b0" font-size="14" font-family="sans-serif">x</text>
+  <text x="74" y="262" fill="#8892b0" font-size="14" font-family="sans-serif">y（向下）</text>
+
+  <!-- 抛出点 -->
+  <circle cx="70" cy="45" r="5" fill="#ffd166"/>
+  <text x="80" y="40" fill="#ffd166" font-size="14" font-family="sans-serif">v₀</text>
+
+  <!-- 抛物线轨迹 -->
+  <path d="M 70,45 Q 250,330 430,255" fill="none" stroke="#7cc7ff" stroke-width="2.5"/>
+
+  <!-- 轨迹上一点的速度分解 -->
+  <circle cx="250" cy="195" r="4.5" fill="#ff8fa3"/>
+
+  <!-- 水平分速度 v0 -->
+  <line x1="250" y1="195" x2="330" y2="195" stroke="#a8f0c8" stroke-width="2.5"/>
+  <polygon points="336,195 322,189 322,201" fill="#a8f0c8"/>
+  <text x="296" y="186" fill="#a8f0c8" font-size="13" font-family="sans-serif">v₀（水平匀速）</text>
+
+  <!-- 竖直分速度 gt -->
+  <line x1="250" y1="195" x2="250" y2="252" stroke="#ffd166" stroke-width="2.5"/>
+  <polygon points="250,258 244,246 256,246" fill="#ffd166"/>
+  <text x="258" y="248" fill="#ffd166" font-size="13" font-family="sans-serif">gt（竖直自由落体）</text>
+
+  <!-- 合速度 v 沿切线 -->
+  <line x1="250" y1="195" x2="350" y2="262" stroke="#ff8fa3" stroke-width="2.5"/>
+  <polygon points="355,266 338,260 350,250" fill="#ff8fa3"/>
+  <text x="332" y="240" fill="#ff8fa3" font-size="14" font-family="sans-serif">v（沿切线）</text>
+
+  <!-- 标题 -->
+  <text x="70" y="290" fill="#c8d0e8" font-size="13" font-family="sans-serif">平抛运动：水平方向匀速（v₀），竖直方向自由落体（gt），合速度沿轨迹切线</text>
+</svg>

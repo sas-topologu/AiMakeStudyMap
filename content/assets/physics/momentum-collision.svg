@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300">
+  <!-- 两球碰撞：碰撞前后系统总动量守恒 -->
+  <rect width="480" height="300" fill="#0d1226" rx="8"/>
+
+  <!-- 碰撞前 -->
+  <text x="60" y="70" fill="#8892b0" font-size="14" font-family="sans-serif">碰撞前</text>
+  <circle cx="150" cy="120" r="28" fill="#1b2440" stroke="#7cc7ff" stroke-width="2"/>
+  <text x="136" y="126" fill="#c8d0e8" font-size="14" font-family="sans-serif">m₁</text>
+  <line x1="178" y1="120" x2="240" y2="120" stroke="#ff8fa3" stroke-width="3"/>
+  <polygon points="246,120 232,114 232,126" fill="#ff8fa3"/>
+  <text x="218" y="112" fill="#ff8fa3" font-size="14" font-family="sans-serif">v₁</text>
+  <circle cx="330" cy="120" r="28" fill="#1b2440" stroke="#5a6488" stroke-width="2"/>
+  <text x="316" y="126" fill="#8892b0" font-size="14" font-family="sans-serif">m₂</text>
+  <text x="316" y="176" fill="#5a6488" font-size="12" font-family="sans-serif">静止</text>
+
+  <!-- 碰撞后 -->
+  <text x="60" y="205" fill="#8892b0" font-size="14" font-family="sans-serif">碰撞后</text>
+  <circle cx="180" cy="250" r="28" fill="#1b2440" stroke="#7cc7ff" stroke-width="2"/>
+  <text x="166" y="256" fill="#c8d0e8" font-size="14" font-family="sans-serif">m₁</text>
+  <line x1="208" y1="250" x2="250" y2="250" stroke="#a8f0c8" stroke-width="3"/>
+  <polygon points="256,250 242,244 242,256" fill="#a8f0c8"/>
+  <text x="230" y="242" fill="#a8f0c8" font-size="14" font-family="sans-serif">v₁′</text>
+  <circle cx="330" cy="250" r="28" fill="#1b2440" stroke="#ffd166" stroke-width="2"/>
+  <text x="316" y="256" fill="#ffd166" font-size="14" font-family="sans-serif">m₂</text>
+  <line x1="358" y1="250" x2="410" y2="250" stroke="#ffd166" stroke-width="3"/>
+  <polygon points="416,250 402,244 402,256" fill="#ffd166"/>
+  <text x="360" y="242" fill="#ffd166" font-size="14" font-family="sans-serif">v₂′</text>
+
+  <!-- 标题 -->
+  <text x="60" y="292" fill="#c8d0e8" font-size="13" font-family="sans-serif">动量守恒：m₁v₁+m₂v₂=m₁v₁′+m₂v₂′（系统合外力为零）</text>
+</svg>

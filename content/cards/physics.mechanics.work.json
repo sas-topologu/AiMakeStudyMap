@@ -1,0 +1,206 @@
+{
+  "id": "physics.mechanics.work",
+  "title": "功与动能定理",
+  "subject": "物理",
+  "category": "自然科学",
+  "credibility": "verified",
+  "difficulty": 3,
+  "summary": "功是能量转化的量度，动能定理把力对物体做功与动能变化联系起来；本卡介绍功的计算、功率、动能与动能定理。",
+  "objectives": [
+    "掌握功的计算式 W=Fs cosθ 与正功、负功的物理意义",
+    "理解功率的概念，会计算平均功率与瞬时功率",
+    "理解动能的定义 Eₖ=½mv² 及动能是标量",
+    "掌握动能定理 W=ΔEₖ 并能用于解决多过程问题"
+  ],
+  "sections": [
+    {
+      "heading": "功的概念与计算",
+      "tier": "core",
+      "body": "力与物体在力的方向上发生的位移的乘积叫[[功]]。恒力做功的计算式为 **W=Fs cosθ**，θ 为力与位移方向的夹角。当 θ=90° 时 W=0（如向心力不做功、支持力沿垂直方向不做功）。功的单位是焦耳（J）。"
+    },
+    {
+      "heading": "正功与负功",
+      "tier": "core",
+      "body": "θ<90° 时力做[[正功]]，表示该力是动力，使物体动能增加；θ>90° 时力做[[负功]]，表示该力是阻力，使物体动能减少；θ=90° 时力不做功。负功也可表述为「物体克服该力做了多少功」。功是标量，但有正负，正负不表示方向。"
+    },
+    {
+      "heading": "功率",
+      "tier": "core",
+      "body": "[[功率]]表示做功的快慢，P=W/t。由 P=W/t 与 W=Fs、v=s/t 可得瞬时功率 **P=Fv cosθ**。国际单位是瓦特（W）。汽车发动机功率一定时，牵引力与速度成反比：上坡时需要大牵引力，故挂低挡减速。"
+    },
+    {
+      "heading": "动能",
+      "tier": "core",
+      "body": "物体由于运动而具有的能量叫[[动能]]，表达式 **Eₖ=½mv²**。动能是**标量**，恒为非负值，与速度方向无关；动能变化与速度大小变化对应，速度大小不变则动能不变（如匀速圆周运动）。"
+    },
+    {
+      "heading": "动能定理",
+      "tier": "core",
+      "body": "[[动能定理]]：合外力对物体做的功等于物体动能的变化量，即 **W合=ΔEₖ=Eₖ₂-Eₖ₁**。它不要求力恒定，适用于变力做功和多过程问题：只需考虑初末动能与全程合外力做功，无需关心中间过程细节。"
+    },
+    {
+      "heading": "动能定理的应用",
+      "tier": "detail",
+      "body": "用动能定理解题步骤：①确定研究对象与过程；②受力分析并求全程合外力做功（注意各力做功的正负）；③确定初末动能；④列方程 W合=Eₖ₂-Eₖ₁ 求解。例如物体在粗糙水平面上滑行，摩擦力做功 -fs=0-½mv₀²，可直接求滑行距离。"
+    },
+    {
+      "heading": "小结",
+      "tier": "core",
+      "body": "本卡核心：①W=Fs cosθ，正负表示动力与阻力；②功率 P=Fv；③动能 Eₖ=½mv² 是标量；④动能定理 W合=ΔEₖ，是解决力做功与运动关系的有力工具。"
+    }
+  ],
+  "media": [
+    {
+      "id": "work-force",
+      "type": "image",
+      "src": "physics/work-force.svg",
+      "caption": "恒力做功 W=Fs·cosθ，只有沿位移方向的分力做功",
+      "core": true
+    }
+  ],
+  "examples": [
+    {
+      "id": "ex1",
+      "title": "求恒力做功",
+      "problem": "水平拉力 10 N 使物体沿水平方向移动 5 m，求拉力做的功。",
+      "steps": [
+        "力与位移同向，θ=0，cosθ=1",
+        "W=Fs=10×5",
+        "得 W=50 J"
+      ],
+      "answer": "50 J"
+    },
+    {
+      "id": "ex2",
+      "title": "求斜向拉力的功",
+      "problem": "力 F=20 N 与水平方向成 60° 角，物体沿水平移动 4 m，求拉力做功。",
+      "steps": [
+        "W=Fs cosθ=20×4×cos60°",
+        "cos60°=0.5",
+        "得 W=40 J"
+      ],
+      "answer": "40 J"
+    },
+    {
+      "id": "ex3",
+      "title": "用动能定理求末速度",
+      "problem": "质量 2 kg 的物体静止开始受水平力 10 N，前进 4 m（摩擦力忽略），求末速度。",
+      "steps": [
+        "合外力做功 W=Fs=10×4=40 J",
+        "由动能定理 W=½mv²-0",
+        "40=½×2×v²，v²=40，v=√40≈6.3 m/s"
+      ],
+      "answer": "约 6.3 m/s"
+    }
+  ],
+  "pitfalls": [
+    "功的正负不是方向：功是标量，负功表示力阻碍运动，不是「方向相反的功」",
+    "θ 取力与位移的夹角：公式中的 θ 必须是力与位移两个方向的夹角，误用会算错",
+    "向心力/支持力不做功：垂直于位移方向的力做功为零，不要重复计入",
+    "动能定理中的功是合外力的总功：需把各力做功代数相加，不可漏力"
+  ],
+  "emblems": [
+    { "type": "formula", "content": "W=Fs·cosθ", "caption": "功" },
+    { "type": "formula", "content": "Eₖ=½mv²", "caption": "动能" },
+    { "type": "image", "content": "work-force", "caption": "恒力做功" }
+  ],
+  "terms": {
+    "功": "力与力的方向上位移的乘积 W=Fs cosθ，单位焦耳（J），是能量转化的量度。",
+    "正功": "θ<90° 时力做的功，表示该力是动力。",
+    "负功": "θ>90° 时力做的功，表示该力是阻力。",
+    "功率": "做功的快慢 P=W/t，瞬时功率 P=Fv cosθ，单位瓦特（W）。",
+    "动能": "物体由于运动而具有的能量 Eₖ=½mv²，标量，非负。",
+    "动能定理": "合外力做功等于动能变化量 W合=ΔEₖ=Eₖ₂-Eₖ₁。"
+  },
+  "relations": {
+    "prerequisites": ["physics.force.second"],
+    "related": []
+  },
+  "questionBank": [
+    {
+      "id": "q1",
+      "type": "choice",
+      "stem": "恒力做功的计算式是",
+      "options": ["W=Fs cosθ", "W=Fs", "W=Fs sinθ", "W=mv²/2"],
+      "answer": 0,
+      "explanation": "W=Fs cosθ，θ 为力与位移的夹角。",
+      "difficulty": 1
+    },
+    {
+      "id": "q2",
+      "type": "choice",
+      "stem": "功的单位是",
+      "options": ["焦耳", "瓦特", "牛顿", "米每秒"],
+      "answer": 0,
+      "explanation": "功的单位是焦耳（J）。",
+      "difficulty": 1
+    },
+    {
+      "id": "q3",
+      "type": "choice",
+      "stem": "动能的表达式是",
+      "options": ["Eₖ=½mv²", "Eₖ=mgh", "Eₖ=mv", "Eₖ=½kx²"],
+      "answer": 0,
+      "explanation": "Eₖ=½mv²。",
+      "difficulty": 1
+    },
+    {
+      "id": "q4",
+      "type": "fill",
+      "stem": "水平力 8 N 使物体移动 3 m，力做功 ____ J",
+      "answer": "24",
+      "explanation": "W=Fs=8×3=24 J。",
+      "difficulty": 2
+    },
+    {
+      "id": "q5",
+      "type": "fill",
+      "stem": "质量 4 kg 物体速度 3 m/s，动能为 ____ J",
+      "answer": "18",
+      "explanation": "Eₖ=½×4×9=18 J。",
+      "difficulty": 2
+    },
+    {
+      "id": "q6",
+      "type": "choice",
+      "stem": "当力与位移方向垂直时，该力做功为",
+      "options": ["零", "Fs", "Fs/2", "最大值"],
+      "answer": 0,
+      "explanation": "θ=90° 时 cosθ=0，做功为零。",
+      "difficulty": 2
+    },
+    {
+      "id": "q7",
+      "type": "choice",
+      "stem": "动能定理的表达式是",
+      "options": ["W合=ΔEₖ", "W合=F/s", "Eₖ=ΔW", "P=W/t"],
+      "answer": 0,
+      "explanation": "合外力做功等于动能变化量 W合=ΔEₖ。",
+      "difficulty": 2
+    },
+    {
+      "id": "q8",
+      "type": "choice",
+      "stem": "关于功率，下列说法正确的是",
+      "options": [
+        "功率表示做功的快慢",
+        "功率表示做功的多少",
+        "功率越大做功一定越多",
+        "功率单位是焦耳"
+      ],
+      "answer": 0,
+      "explanation": "功率表示做功的快慢，P=W/t。",
+      "difficulty": 2
+    },
+    {
+      "id": "q9",
+      "type": "choice",
+      "stem": "质量 2 kg 物体静止受合力 10 N 前进 5 m（无摩擦），末速度为",
+      "options": ["√50 m/s", "5 m/s", "10 m/s", "√20 m/s"],
+      "answer": 0,
+      "explanation": "W=50 J=½×2×v²，v=√50≈7.07 m/s。",
+      "difficulty": 3
+    }
+  ],
+  "version": 1
+}

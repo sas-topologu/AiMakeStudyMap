@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300">
+  <!-- 单摆：重力势能与动能相互转化，机械能守恒 -->
+  <rect width="480" height="300" fill="#0d1226" rx="8"/>
+
+  <!-- 悬挂点 -->
+  <line x1="210" y1="60" x2="270" y2="60" stroke="#8892b0" stroke-width="2"/>
+  <circle cx="240" cy="60" r="4" fill="#ffd166"/>
+  <text x="248" y="56" fill="#ffd166" font-size="13" font-family="sans-serif">悬挂点</text>
+
+  <!-- 摆线：最高点 A（左） -->
+  <line x1="240" y1="60" x2="140" y2="185" stroke="#5a6488" stroke-width="1.5"/>
+  <circle cx="140" cy="185" r="8" fill="#7cc7ff"/>
+  <text x="118" y="210" fill="#7cc7ff" font-size="14" font-family="sans-serif">A（最高点）</text>
+
+  <!-- 摆线：最低点 B（下） -->
+  <line x1="240" y1="60" x2="240" y2="215" stroke="#7cc7ff" stroke-width="2"/>
+  <circle cx="240" cy="215" r="8" fill="#ff8fa3"/>
+  <text x="252" y="240" fill="#ff8fa3" font-size="14" font-family="sans-serif">B（最低点）</text>
+
+  <!-- 摆线：最高点 C（右） -->
+  <line x1="240" y1="60" x2="340" y2="185" stroke="#5a6488" stroke-width="1.5" stroke-dasharray="4,4"/>
+  <circle cx="340" cy="185" r="8" fill="#7cc7ff" opacity="0.5"/>
+
+  <!-- 能量标注 -->
+  <text x="60" y="100" fill="#ffd166" font-size="14" font-family="sans-serif">A：全部为重力势能</text>
+  <text x="60" y="122" fill="#a8f0c8" font-size="14" font-family="sans-serif">B：全部为动能</text>
+  <text x="250" y="100" fill="#c8d0e8" font-size="13" font-family="sans-serif">E=Eₚ+Eₖ 恒定</text>
+
+  <!-- 标题 -->
+  <text x="60" y="286" fill="#c8d0e8" font-size="13" font-family="sans-serif">单摆摆动中重力势能与动能相互转化，只有重力做功时机械能守恒</text>
+</svg>

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300">
+  <!-- 闵可夫斯基时空图：光锥把时空分为类时、类光、类空区域 -->
+  <rect width="480" height="300" fill="#0d1226" rx="8"/>
+
+  <!-- 坐标轴：t 竖直向上、x 水平向右 -->
+  <line x1="240" y1="265" x2="240" y2="15" stroke="#8892b0" stroke-width="1.5"/>
+  <line x1="40" y1="200" x2="440" y2="200" stroke="#8892b0" stroke-width="1.5"/>
+  <polygon points="240,14 236,24 244,24" fill="#8892b0"/>
+  <polygon points="444,200 432,196 432,204" fill="#8892b0"/>
+  <text x="246" y="24" fill="#8892b0" font-size="14" font-family="sans-serif">t</text>
+  <text x="444" y="216" fill="#8892b0" font-size="14" font-family="sans-serif">x</text>
+
+  <!-- 光锥：45° 线 -->
+  <line x1="240" y1="200" x2="420" y2="30" stroke="#7cc7ff" stroke-width="2"/>
+  <line x1="240" y1="200" x2="60" y2="30" stroke="#7cc7ff" stroke-width="2"/>
+  <line x1="240" y1="200" x2="420" y2="370" stroke="#7cc7ff" stroke-width="2" opacity="0.35"/>
+  <line x1="240" y1="200" x2="60" y2="370" stroke="#7cc7ff" stroke-width="2" opacity="0.35"/>
+
+  <!-- 未来光锥（类时） -->
+  <polygon points="240,200 300,140 300,200" fill="#7cc7ff" opacity="0.12"/>
+  <text x="322" y="110" fill="#7cc7ff" font-size="13" font-family="sans-serif">未来光锥</text>
+  <text x="322" y="128" fill="#5a6488" font-size="12" font-family="sans-serif">（类时区域）</text>
+
+  <!-- 光锥面：类光 -->
+  <text x="352" y="160" fill="#ffd166" font-size="12" font-family="sans-serif">类光（光速）</text>
+
+  <!-- 类空区域 -->
+  <text x="60" y="230" fill="#ff8fa3" font-size="13" font-family="sans-serif">类空区域</text>
+
+  <!-- 过去光锥 -->
+  <text x="322" y="240" fill="#a8f0c8" font-size="13" font-family="sans-serif">过去光锥</text>
+
+  <!-- 标题 -->
+  <text x="40" y="292" fill="#c8d0e8" font-size="13" font-family="sans-serif">四维时空：光锥以内为类时（可因果联系），锥面为类光，以外为类空（不可因果联系）</text>
+</svg>

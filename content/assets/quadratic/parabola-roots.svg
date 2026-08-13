@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300">
+  <!-- 抛物线 y=ax²+bx+c（a>0）与 x 轴两交点示意：Δ>0 ⇔ 两个不等实根 -->
+  <rect width="480" height="300" fill="#0d1226" rx="8"/>
+
+  <!-- 坐标轴 -->
+  <line x1="30" y1="210" x2="450" y2="210" stroke="#8892b0" stroke-width="1.5"/>
+  <line x1="60" y1="20" x2="60" y2="260" stroke="#8892b0" stroke-width="1.5"/>
+  <polygon points="450,210 442,206 442,214" fill="#8892b0"/>
+  <polygon points="60,20 56,28 64,28" fill="#8892b0"/>
+  <text x="456" y="214" fill="#8892b0" font-size="14" font-family="sans-serif">x</text>
+  <text x="66" y="30" fill="#8892b0" font-size="14" font-family="sans-serif">y</text>
+
+  <!-- 对称轴（虚线） -->
+  <line x1="240" y1="30" x2="240" y2="250" stroke="#5a6488" stroke-width="1" stroke-dasharray="5,4"/>
+  <text x="246" y="46" fill="#5a6488" font-size="12" font-family="sans-serif">x=-b/2a</text>
+
+  <!-- 抛物线：顶点 (240,230)，与 x 轴交于 (191,210) 与 (289,210) -->
+  <path d="M 90,40 Q 240,420 390,40" fill="none" stroke="#7cc7ff" stroke-width="2.5"/>
+
+  <!-- 顶点 -->
+  <circle cx="240" cy="230" r="4" fill="#ffd166"/>
+  <text x="248" y="244" fill="#ffd166" font-size="12" font-family="sans-serif">顶点</text>
+
+  <!-- 两个根 -->
+  <circle cx="191" cy="210" r="4.5" fill="#ff8fa3"/>
+  <circle cx="289" cy="210" r="4.5" fill="#ff8fa3"/>
+  <text x="180" y="200" fill="#ff8fa3" font-size="14" font-family="sans-serif">x₁</text>
+  <text x="282" y="200" fill="#ff8fa3" font-size="14" font-family="sans-serif">x₂</text>
+
+  <!-- 标题与说明 -->
+  <text x="30" y="285" fill="#c8d0e8" font-size="13" font-family="sans-serif">y=ax²+bx+c（a&gt;0）：Δ&gt;0 时抛物线与 x 轴有两个交点 ⇔ 方程有两个不相等的实根</text>
+</svg>

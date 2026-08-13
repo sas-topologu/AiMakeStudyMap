@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300">
+  <!-- 水平面上物体受力分析：重力 G、支持力 N（弹力）、拉力 F、摩擦力 f -->
+  <rect width="480" height="300" fill="#0d1226" rx="8"/>
+
+  <!-- 地面 -->
+  <line x1="30" y1="230" x2="450" y2="230" stroke="#8892b0" stroke-width="2"/>
+  <text x="40" y="252" fill="#8892b0" font-size="12" font-family="sans-serif">地面</text>
+
+  <!-- 物块 -->
+  <rect x="180" y="150" width="120" height="80" fill="#1b2440" stroke="#7cc7ff" stroke-width="2"/>
+  <text x="216" y="196" fill="#c8d0e8" font-size="16" font-family="sans-serif">物体</text>
+
+  <!-- 重力 G：竖直向下 -->
+  <line x1="240" y1="150" x2="240" y2="60" stroke="#ff8fa3" stroke-width="0" opacity="0"/>
+  <line x1="240" y1="230" x2="240" y2="290" stroke="#ff8fa3" stroke-width="3"/>
+  <polygon points="240,292 233,280 247,280" fill="#ff8fa3"/>
+  <text x="250" y="288" fill="#ff8fa3" font-size="15" font-family="sans-serif">G（重力）</text>
+
+  <!-- 支持力 N：竖直向上（弹力） -->
+  <line x1="240" y1="150" x2="240" y2="100" stroke="#7cc7ff" stroke-width="3"/>
+  <polygon points="240,98 233,110 247,110" fill="#7cc7ff"/>
+  <text x="250" y="98" fill="#7cc7ff" font-size="15" font-family="sans-serif">N（弹力）</text>
+
+  <!-- 拉力 F：水平向右 -->
+  <line x1="180" y1="185" x2="120" y2="185" stroke="#ffd166" stroke-width="0" opacity="0"/>
+  <line x1="300" y1="185" x2="380" y2="185" stroke="#ffd166" stroke-width="3"/>
+  <polygon points="384,185 370,178 370,192" fill="#ffd166"/>
+  <text x="320" y="176" fill="#ffd166" font-size="15" font-family="sans-serif">F（拉力）</text>
+
+  <!-- 摩擦力 f：水平向左 -->
+  <line x1="180" y1="185" x2="110" y2="185" stroke="#a8f0c8" stroke-width="3"/>
+  <polygon points="106,185 120,178 120,192" fill="#a8f0c8"/>
+  <text x="60" y="176" fill="#a8f0c8" font-size="15" font-family="sans-serif">f（摩擦力）</text>
+
+  <!-- 标题 -->
+  <text x="30" y="28" fill="#c8d0e8" font-size="13" font-family="sans-serif">受力分析示例：重力竖直向下、弹力（支持力）垂直于接触面、摩擦力沿接触面</text>
+</svg>

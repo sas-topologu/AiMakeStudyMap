@@ -1,0 +1,88 @@
+{
+  "id": "physics.motion.uniform",
+  "title": "匀速直线运动",
+  "subject": "物理",
+  "category": "自然科学",
+  "credibility": "verified",
+  "difficulty": 1,
+  "summary": "速度不变的直线运动是最简单的机械运动；本卡介绍机械运动、参照物、匀速直线运动与速度公式。",
+  "sections": [
+    {
+      "heading": "机械运动与参照物",
+      "body": "一个物体相对于另一个物体位置的变化叫做[[机械运动]]。判断物体是否运动时，被选作标准的物体叫做[[参照物]]；同一物体选择不同的参照物，运动状态的描述可能不同，这就是运动和静止的相对性。"
+    },
+    {
+      "heading": "匀速直线运动",
+      "body": "物体沿直线且速度不变的运动叫做匀速直线运动，是最简单的机械运动。它的路程与时间成正比，用函数观点看，路程 s 与时间 t 的关系是正比例关系，可用[[一次函数]]的图象表示。"
+    },
+    {
+      "heading": "速度公式",
+      "body": "[[速度]]等于路程与通过这段路程所用时间的比值，公式为 v=s/t。国际单位是米每秒（m/s），常用单位还有千米每小时（km/h），换算关系为 1 m/s=3.6 km/h。"
+    }
+  ],
+  "terms": {
+    "机械运动": "一个物体相对于另一个物体位置的变化。",
+    "参照物": "判断物体运动或静止时被选作标准的物体。",
+    "速度": "路程与时间之比，公式 v=s/t，单位 m/s。",
+    "一次函数": "形如 y=kx+b 的函数；匀速运动中 s=vt 是 s 关于 t 的正比例（一次）函数。"
+  },
+  "relations": {
+    "prerequisites": ["math.function.concept"],
+    "related": ["math.function.linear"]
+  },
+  "questionBank": [
+    {
+      "id": "q1",
+      "type": "choice",
+      "stem": "匀速直线运动的特点是",
+      "options": ["速度保持不变", "速度逐渐增大", "速度逐渐减小", "路程与时间成反比"],
+      "answer": 0,
+      "explanation": "匀速直线运动沿直线且速度不变。",
+      "difficulty": 1
+    },
+    {
+      "id": "q2",
+      "type": "choice",
+      "stem": "速度公式 v=s/t 中，s 表示",
+      "options": ["路程", "时间", "速度", "加速度"],
+      "answer": 0,
+      "explanation": "s 表示路程，t 表示时间，v 表示速度。",
+      "difficulty": 1
+    },
+    {
+      "id": "q3",
+      "type": "choice",
+      "stem": "速度的国际单位是",
+      "options": ["m/s", "km/h", "m", "s"],
+      "answer": 0,
+      "explanation": "国际单位制中速度单位为米每秒（m/s）。",
+      "difficulty": 1
+    },
+    {
+      "id": "q4",
+      "type": "choice",
+      "stem": "72 km/h 等于",
+      "options": ["20 m/s", "7.2 m/s", "36 m/s", "200 m/s"],
+      "answer": 0,
+      "explanation": "72÷3.6=20，即 72 km/h=20 m/s。",
+      "difficulty": 2
+    },
+    {
+      "id": "q5",
+      "type": "fill",
+      "stem": "某物体 10 s 内通过 50 m，速度是 ____ m/s",
+      "answer": "5",
+      "explanation": "v=s/t=50/10=5 m/s。",
+      "difficulty": 1
+    },
+    {
+      "id": "q6",
+      "type": "fill",
+      "stem": "物体以 2 m/s 匀速运动 10 s，通过的路程是 ____ m",
+      "answer": "20",
+      "explanation": "s=vt=2×10=20 m。",
+      "difficulty": 2
+    }
+  ],
+  "version": 1
+}

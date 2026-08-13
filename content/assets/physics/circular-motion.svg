@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300">
+  <!-- 圆周运动：线速度沿切线、向心力指向圆心 -->
+  <rect width="480" height="300" fill="#0d1226" rx="8"/>
+
+  <!-- 轨迹圆 -->
+  <circle cx="240" cy="155" r="100" fill="none" stroke="#5a6488" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <text x="352" y="150" fill="#5a6488" font-size="12" font-family="sans-serif">轨迹</text>
+
+  <!-- 圆心 O -->
+  <circle cx="240" cy="155" r="3.5" fill="#8892b0"/>
+  <text x="246" y="148" fill="#8892b0" font-size="14" font-family="sans-serif">O</text>
+
+  <!-- 半径 -->
+  <line x1="240" y1="155" x2="330" y2="75" stroke="#8892b0" stroke-width="1.5"/>
+  <text x="268" y="102" fill="#8892b0" font-size="13" font-family="sans-serif">r</text>
+
+  <!-- 物体位置 P (330,75) -->
+  <circle cx="330" cy="75" r="5" fill="#ffd166"/>
+  <text x="338" y="70" fill="#ffd166" font-size="14" font-family="sans-serif">P</text>
+
+  <!-- 线速度 v：沿切线 -->
+  <line x1="330" y1="75" x2="398" y2="120" stroke="#7cc7ff" stroke-width="3"/>
+  <polygon points="404,124 388,120 392,132" fill="#7cc7ff"/>
+  <text x="362" y="120" fill="#7cc7ff" font-size="15" font-family="sans-serif">v（切线方向）</text>
+
+  <!-- 向心力 F：指向圆心 -->
+  <line x1="330" y1="75" x2="270" y2="120" stroke="#ff8fa3" stroke-width="3"/>
+  <polygon points="263,126 274,112 282,124" fill="#ff8fa3"/>
+  <text x="212" y="112" fill="#ff8fa3" font-size="15" font-family="sans-serif">F（指向圆心）</text>
+
+  <!-- 角速度标注 -->
+  <path d="M 285,120 A 52 52 0 0 1 300,80" fill="none" stroke="#ffd166" stroke-width="1.5"/>
+  <text x="258" y="80" fill="#ffd166" font-size="14" font-family="sans-serif">ω</text>
+
+  <!-- 标题 -->
+  <text x="60" y="280" fill="#c8d0e8" font-size="13" font-family="sans-serif">圆周运动：线速度 v 沿切线，向心力 F 指向圆心，v=ωr、a=v²/r=ω²r</text>
+</svg>

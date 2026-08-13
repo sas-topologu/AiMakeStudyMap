@@ -1,0 +1,88 @@
+{
+  "id": "math.algebra.expression",
+  "title": "代数式与整式",
+  "subject": "数学",
+  "category": "自然科学",
+  "credibility": "verified",
+  "difficulty": 1,
+  "summary": "用字母表示数，从算术走向代数；本卡介绍代数式、单项式、多项式与合并同类项。",
+  "sections": [
+    {
+      "heading": "从数到式",
+      "body": "用运算符号把数或表示数的字母连接起来的式子叫做[[代数式]]，单独的一个数或字母也是代数式。用字母表示数可以简明地表达数量关系与运算规律。"
+    },
+    {
+      "heading": "单项式与多项式",
+      "body": "由数或字母的积组成的式子叫做[[单项式]]，单项式中所有字母的指数和叫做它的次数。几个单项式的和叫做[[多项式]]，其中每个单项式叫做多项式的项，次数最高的项的次数就是多项式的次数。单项式与多项式统称整式。"
+    },
+    {
+      "heading": "合并同类项",
+      "body": "所含字母相同、并且相同字母的指数也相同的项叫做[[同类项]]。合并同类项时，把同类项的系数相加，字母和字母的指数不变，例如 2x+3x=5x。"
+    }
+  ],
+  "terms": {
+    "代数式": "用运算符号把数或表示数的字母连接起来的式子。",
+    "单项式": "由数或字母的积组成的式子，如 3x²y；所有字母指数之和是它的次数。",
+    "多项式": "几个单项式的和，每个单项式叫做它的项。",
+    "同类项": "所含字母相同且相同字母指数也相同的项，可以合并。"
+  },
+  "relations": {
+    "prerequisites": ["math.number.rational"],
+    "related": []
+  },
+  "questionBank": [
+    {
+      "id": "q1",
+      "type": "choice",
+      "stem": "下列各式中，属于单项式的是",
+      "options": ["3x", "x+y", "1/x", "x²+1"],
+      "answer": 0,
+      "explanation": "单项式是数或字母的积；x+y、x²+1 是多项式，1/x 不是整式。",
+      "difficulty": 1
+    },
+    {
+      "id": "q2",
+      "type": "choice",
+      "stem": "单项式 -2x²y 的次数是",
+      "options": ["1", "2", "3", "4"],
+      "answer": 2,
+      "explanation": "次数为所有字母指数之和：2+1=3。",
+      "difficulty": 2
+    },
+    {
+      "id": "q3",
+      "type": "choice",
+      "stem": "与 3x² 是同类项的是",
+      "options": ["2x", "5x²", "3xy", "x³"],
+      "answer": 1,
+      "explanation": "同类项要求字母相同且相同字母的指数相同，5x² 与 3x² 是同类项。",
+      "difficulty": 1
+    },
+    {
+      "id": "q4",
+      "type": "choice",
+      "stem": "合并同类项：2x+3x =",
+      "options": ["5x", "6x", "5x²", "6x²"],
+      "answer": 0,
+      "explanation": "系数相加，字母部分不变：2x+3x=(2+3)x=5x。",
+      "difficulty": 1
+    },
+    {
+      "id": "q5",
+      "type": "fill",
+      "stem": "化简：3a-2a = ____",
+      "answer": "a",
+      "explanation": "3a-2a=(3-2)a=a。",
+      "difficulty": 1
+    },
+    {
+      "id": "q6",
+      "type": "fill",
+      "stem": "多项式 x²+2x+1 的次数是 ____",
+      "answer": "2",
+      "explanation": "多项式的次数是次数最高项的次数，x² 项次数为 2。",
+      "difficulty": 2
+    }
+  ],
+  "version": 1
+}

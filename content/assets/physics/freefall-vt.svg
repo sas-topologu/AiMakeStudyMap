@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300">
+  <!-- 自由落体 v-t 图：从原点出发的直线，斜率 = g -->
+  <rect width="480" height="300" fill="#0d1226" rx="8"/>
+
+  <!-- 坐标轴 -->
+  <line x1="70" y1="230" x2="440" y2="230" stroke="#8892b0" stroke-width="1.5"/>
+  <line x1="70" y1="20" x2="70" y2="245" stroke="#8892b0" stroke-width="1.5"/>
+  <polygon points="440,230 432,226 432,234" fill="#8892b0"/>
+  <polygon points="70,20 66,28 74,28" fill="#8892b0"/>
+  <text x="444" y="234" fill="#8892b0" font-size="14" font-family="sans-serif">t</text>
+  <text x="76" y="30" fill="#8892b0" font-size="14" font-family="sans-serif">v</text>
+
+  <!-- 直线 v=gt：从 (70,230) 到 (430,60) -->
+  <line x1="70" y1="230" x2="430" y2="60" stroke="#7cc7ff" stroke-width="2.5"/>
+
+  <!-- 时间点 t 与速度 v -->
+  <line x1="430" y1="230" x2="430" y2="60" stroke="#5a6488" stroke-width="1" stroke-dasharray="4,4"/>
+  <text x="420" y="246" fill="#8892b0" font-size="14" font-family="sans-serif">t</text>
+  <text x="392" y="52" fill="#ff8fa3" font-size="14" font-family="sans-serif">v=gt</text>
+
+  <!-- 面积（三角形）标注位移 -->
+  <polygon points="70,230 70,230 430,230 430,60" fill="#7cc7ff" opacity="0.18"/>
+  <text x="150" y="220" fill="#c8d0e8" font-size="13" font-family="sans-serif">三角形面积 = 下落高度 h=½gt²</text>
+
+  <!-- 斜率标注 -->
+  <text x="160" y="120" fill="#c8d0e8" font-size="13" font-family="sans-serif">斜率 = g ≈ 9.8 m/s²</text>
+
+  <!-- 标题 -->
+  <text x="70" y="280" fill="#c8d0e8" font-size="13" font-family="sans-serif">自由落体运动 v-t 图：初速为零、匀加速，速度 v=gt，高度 h=½gt²</text>
+</svg>

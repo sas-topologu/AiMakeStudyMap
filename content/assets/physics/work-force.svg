@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300">
+  <!-- 恒力做功：W=Fs·cosθ，力 F 与位移 s 成 θ 角 -->
+  <rect width="480" height="300" fill="#0d1226" rx="8"/>
+
+  <!-- 地面 -->
+  <line x1="40" y1="225" x2="450" y2="225" stroke="#8892b0" stroke-width="2"/>
+
+  <!-- 物块 -->
+  <rect x="150" y="150" width="120" height="75" fill="#1b2440" stroke="#7cc7ff" stroke-width="2"/>
+  <text x="184" y="196" fill="#c8d0e8" font-size="16" font-family="sans-serif">物体</text>
+
+  <!-- 位移 s -->
+  <line x1="60" y1="245" x2="430" y2="245" stroke="#a8f0c8" stroke-width="3"/>
+  <polygon points="438,245 424,238 424,252" fill="#a8f0c8"/>
+  <text x="400" y="266" fill="#a8f0c8" font-size="15" font-family="sans-serif">位移 s</text>
+
+  <!-- 力 F：斜向上与水平成 θ -->
+  <line x1="210" y1="150" x2="300" y2="70" stroke="#ff8fa3" stroke-width="3"/>
+  <polygon points="305,64 288,70 298,80" fill="#ff8fa3"/>
+  <text x="282" y="62" fill="#ff8fa3" font-size="16" font-family="sans-serif">F</text>
+
+  <!-- θ 角 -->
+  <path d="M 232,225 A 22 22 0 0 1 240,203" fill="none" stroke="#ffd166" stroke-width="1.5"/>
+  <text x="244" y="220" fill="#ffd166" font-size="14" font-family="sans-serif">θ</text>
+
+  <!-- 分解：Fcosθ 沿位移方向 -->
+  <line x1="210" y1="150" x2="300" y2="150" stroke="#ffd166" stroke-width="1" stroke-dasharray="4,4"/>
+  <text x="286" y="142" fill="#ffd166" font-size="13" font-family="sans-serif">Fcosθ</text>
+
+  <!-- 标题 -->
+  <text x="40" y="34" fill="#c8d0e8" font-size="13" font-family="sans-serif">恒力做功 W=Fs·cosθ：只有沿位移方向的分力 Fcosθ 做功</text>
+</svg>

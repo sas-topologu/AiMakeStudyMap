@@ -1,0 +1,102 @@
+{
+  "id": "math.function.quadratic",
+  "title": "二次函数",
+  "subject": "数学",
+  "category": "自然科学",
+  "credibility": "verified",
+  "difficulty": 4,
+  "summary": "形如 y=ax²+bx+c（a≠0）的函数，图象是抛物线；本卡介绍图象性质、顶点与对称轴，以及与一元二次方程的联系。",
+  "objectives": [
+    "理解二次函数的概念，知道其图象是抛物线",
+    "掌握开口方向、顶点坐标与对称轴的确定方法",
+    "理解二次函数图象与一元二次方程根的联系"
+  ],
+  "pitfalls": [
+    "忽略 a≠0 的前提：a=0 时不是二次函数",
+    "顶点横坐标符号记错：对称轴是 x=-b/(2a)，负号易丢",
+    "把 a 的符号与开口方向记反：a>0 开口向上，a<0 开口向下"
+  ],
+  "emblems": [
+    { "type": "formula", "content": "y=ax²+bx+c (a≠0)，对称轴 x=-b/(2a)", "caption": "一般形式与对称轴" }
+  ],
+  "sections": [
+    {
+      "heading": "二次函数的概念",
+      "body": "形如 y=ax²+bx+c（a、b、c 为常数，a≠0）的函数叫做[[二次函数]]。它的图象是一条[[抛物线]]：a>0 时开口向上，a<0 时开口向下，|a| 越大开口越窄。"
+    },
+    {
+      "heading": "顶点与对称轴",
+      "body": "抛物线的最高点或最低点叫做[[顶点]]，其横坐标为 x=-b/(2a)。经过顶点且垂直于 x 轴的直线是抛物线的[[对称轴]]，抛物线关于对称轴左右对称。a>0 时函数在顶点处取最小值，a<0 时取最大值。"
+    },
+    {
+      "heading": "与一元二次方程的关系",
+      "body": "二次函数 y=ax²+bx+c 的图象与 x 轴交点的横坐标，就是[[一元二次方程]] ax²+bx+c=0 的根。判别式 Δ>0 时有两个交点，Δ=0 时有一个交点（顶点在 x 轴上），Δ<0 时没有交点。"
+    }
+  ],
+  "terms": {
+    "二次函数": "形如 y=ax²+bx+c（a≠0）的函数。",
+    "抛物线": "二次函数的图象，开口方向由 a 的符号决定。",
+    "顶点": "抛物线的最高点或最低点，横坐标为 -b/(2a)。",
+    "对称轴": "过顶点且垂直于 x 轴的直线 x=-b/(2a)，抛物线关于它对称。",
+    "一元二次方程": "形如 ax²+bx+c=0（a≠0）的方程，其根对应抛物线与 x 轴交点的横坐标。"
+  },
+  "relations": {
+    "prerequisites": ["math.function.linear", "math.equation.quadratic"],
+    "related": []
+  },
+  "questionBank": [
+    {
+      "id": "q1",
+      "type": "choice",
+      "stem": "二次函数 y=ax²+bx+c（a≠0）的图象是",
+      "options": ["抛物线", "直线", "双曲线", "折线"],
+      "answer": 0,
+      "explanation": "二次函数的图象是抛物线。",
+      "difficulty": 1
+    },
+    {
+      "id": "q2",
+      "type": "choice",
+      "stem": "抛物线 y=ax²+bx+c 中，当 a>0 时开口",
+      "options": ["向上", "向下", "向左", "向右"],
+      "answer": 0,
+      "explanation": "a>0 开口向上，a<0 开口向下。",
+      "difficulty": 1
+    },
+    {
+      "id": "q3",
+      "type": "choice",
+      "stem": "抛物线 y=x² 的顶点坐标是",
+      "options": ["(0,0)", "(1,1)", "(0,1)", "(1,0)"],
+      "answer": 0,
+      "explanation": "b=c=0，顶点横坐标 -b/(2a)=0，纵坐标为 0。",
+      "difficulty": 2
+    },
+    {
+      "id": "q4",
+      "type": "choice",
+      "stem": "抛物线 y=ax²+bx+c 的对称轴是直线",
+      "options": ["x=-b/(2a)", "x=b/(2a)", "x=-b/a", "y=-b/(2a)"],
+      "answer": 0,
+      "explanation": "对称轴为 x=-b/(2a)。",
+      "difficulty": 2
+    },
+    {
+      "id": "q5",
+      "type": "fill",
+      "stem": "抛物线 y=x²-2x+1 的顶点横坐标是 ____",
+      "answer": "1",
+      "explanation": "x=-b/(2a)=2/2=1（顶点为 (1,0)）。",
+      "difficulty": 3
+    },
+    {
+      "id": "q6",
+      "type": "fill",
+      "stem": "函数 y=x²+1 的最小值是 ____",
+      "answer": "1",
+      "explanation": "开口向上，顶点 (0,1) 为最低点，最小值为 1。",
+      "difficulty": 2
+    }
+  ],
+  "version": 2
+}

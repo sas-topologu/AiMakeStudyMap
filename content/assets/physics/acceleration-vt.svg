@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300">
+  <!-- 匀加速直线运动 v-t 图：斜率=加速度 a，面积=位移 x -->
+  <rect width="480" height="300" fill="#0d1226" rx="8"/>
+
+  <!-- 坐标轴：v 竖直、t 水平 -->
+  <line x1="60" y1="230" x2="440" y2="230" stroke="#8892b0" stroke-width="1.5"/>
+  <line x1="60" y1="20" x2="60" y2="245" stroke="#8892b0" stroke-width="1.5"/>
+  <polygon points="440,230 432,226 432,234" fill="#8892b0"/>
+  <polygon points="60,20 56,28 64,28" fill="#8892b0"/>
+  <text x="444" y="234" fill="#8892b0" font-size="14" font-family="sans-serif">t</text>
+  <text x="66" y="30" fill="#8892b0" font-size="14" font-family="sans-serif">v</text>
+
+  <!-- 直线：v=v0+at，从 (70,190) 到 (420,60) -->
+  <line x1="70" y1="190" x2="420" y2="60" stroke="#7cc7ff" stroke-width="2.5"/>
+
+  <!-- v0 起点 -->
+  <circle cx="70" cy="190" r="4.5" fill="#ffd166"/>
+  <text x="78" y="178" fill="#ffd166" font-size="14" font-family="sans-serif">v₀</text>
+
+  <!-- 终点 -->
+  <circle cx="420" cy="60" r="4.5" fill="#ff8fa3"/>
+  <text x="380" y="52" fill="#ff8fa3" font-size="14" font-family="sans-serif">v=v₀+at</text>
+
+  <!-- 时间轴点 t -->
+  <line x1="420" y1="230" x2="420" y2="60" stroke="#5a6488" stroke-width="1" stroke-dasharray="4,4"/>
+  <text x="412" y="246" fill="#8892b0" font-size="14" font-family="sans-serif">t</text>
+
+  <!-- 位移面积（梯形） -->
+  <polygon points="70,190 70,230 420,230 420,60" fill="#7cc7ff" opacity="0.18"/>
+
+  <!-- 标注斜率 -->
+  <text x="160" y="120" fill="#c8d0e8" font-size="13" font-family="sans-serif">斜率 = a（加速度）</text>
+
+  <!-- 标注面积 -->
+  <text x="150" y="218" fill="#c8d0e8" font-size="13" font-family="sans-serif">梯形面积 = 位移 x</text>
+
+  <!-- 标题 -->
+  <text x="60" y="280" fill="#c8d0e8" font-size="13" font-family="sans-serif">匀加速直线运动 v-t 图：斜率即加速度，图线与 t 轴围成的面积即位移</text>
+</svg>

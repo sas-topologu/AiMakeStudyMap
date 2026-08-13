@@ -1,0 +1,93 @@
+{
+  "id": "math.function.concept",
+  "title": "函数的概念",
+  "subject": "数学",
+  "category": "自然科学",
+  "credibility": "verified",
+  "difficulty": 2,
+  "summary": "函数刻画两个变量之间的对应关系；本卡介绍变量、函数的定义、自变量与定义域及函数的表示方法。",
+  "sections": [
+    {
+      "heading": "变量与常量",
+      "body": "在一个变化过程中，数值发生变化的量叫做[[变量]]，数值始终不变的量叫做常量。现实世界中的许多问题都可以用变量之间的关系来刻画。"
+    },
+    {
+      "heading": "函数的概念",
+      "body": "一般地，在一个变化过程中有两个变量 x 与 y，如果对于 x 的每一个确定的值，y 都有唯一确定的值与其对应，那么就说 y 是 x 的[[函数]]，x 叫做[[自变量]]。自变量允许取值的范围叫做[[定义域]]。"
+    },
+    {
+      "heading": "函数的表示方法",
+      "body": "函数有三种常用表示方法：解析式法（如 y=2x）、列表法和图象法。三种方法各有优点：解析式便于计算，列表便于查阅，图象便于直观观察变化趋势。"
+    }
+  ],
+  "terms": {
+    "变量": "在变化过程中数值可以变化的量。",
+    "函数": "两个变量间的一种对应关系：自变量每取一个确定的值，因变量都有唯一确定的值与之对应。",
+    "自变量": "函数中主动取值的变量，通常记作 x。",
+    "定义域": "自变量允许取值的范围。"
+  },
+  "relations": {
+    "prerequisites": ["math.algebra.expression"],
+    "related": []
+  },
+  "questionBank": [
+    {
+      "id": "q1",
+      "type": "choice",
+      "stem": "y 是 x 的函数，要求对于 x 的每一个确定的值，y 有",
+      "options": ["唯一确定的值与之对应", "两个值与之对应", "任意多个值与之对应", "没有要求"],
+      "answer": 0,
+      "explanation": "函数定义的核心是\"唯一确定\"：一个 x 只能对应一个 y。",
+      "difficulty": 1
+    },
+    {
+      "id": "q2",
+      "type": "choice",
+      "stem": "在关系式 y=2x 中，自变量是",
+      "options": ["x", "y", "2", "x 和 y 都是"],
+      "answer": 0,
+      "explanation": "x 主动取值，y 随 x 变化，故 x 是自变量。",
+      "difficulty": 1
+    },
+    {
+      "id": "q3",
+      "type": "choice",
+      "stem": "下列关系中，y 是 x 的函数的是",
+      "options": ["y=2x", "y²=x（y 可取正负）", "x=1", "|y|=x"],
+      "answer": 0,
+      "explanation": "y=2x 中每个 x 对应唯一的 y；其余选项存在一个 x 对应两个 y 或 y 不随 x 变化的情况。",
+      "difficulty": 2
+    },
+    {
+      "id": "q4",
+      "type": "choice",
+      "stem": "函数的三种常用表示方法是",
+      "options": [
+        "解析式法、列表法、图象法",
+        "公式法、表格法、文字法",
+        "代入法、消元法、图象法",
+        "列表法、图象法、配方法"
+      ],
+      "answer": 0,
+      "explanation": "解析式、列表、图象是函数的三种标准表示方法。",
+      "difficulty": 1
+    },
+    {
+      "id": "q5",
+      "type": "fill",
+      "stem": "函数 y=x-1 中，当 x=3 时，y = ____",
+      "answer": "2",
+      "explanation": "代入 x=3 得 y=3-1=2。",
+      "difficulty": 1
+    },
+    {
+      "id": "q6",
+      "type": "fill",
+      "stem": "函数 y=1/x 中，自变量 x 不能取 ____",
+      "answer": "0",
+      "explanation": "分母不能为 0，故定义域为 x≠0。",
+      "difficulty": 2
+    }
+  ],
+  "version": 1
+}

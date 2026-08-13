@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300">
+  <!-- 作用力与反作用力：A 对 B 的力 F 与 B 对 A 的力 F'，大小相等方向相反 -->
+  <rect width="480" height="300" fill="#0d1226" rx="8"/>
+
+  <!-- 物块 A -->
+  <rect x="90" y="120" width="110" height="90" fill="#1b2440" stroke="#7cc7ff" stroke-width="2"/>
+  <text x="120" y="172" fill="#c8d0e8" font-size="18" font-family="sans-serif">A</text>
+
+  <!-- 物块 B -->
+  <rect x="280" y="120" width="110" height="90" fill="#1b2440" stroke="#7cc7ff" stroke-width="2"/>
+  <text x="310" y="172" fill="#c8d0e8" font-size="18" font-family="sans-serif">B</text>
+
+  <!-- A 对 B 的力 F：向右 -->
+  <line x1="200" y1="155" x2="275" y2="155" stroke="#ff8fa3" stroke-width="3"/>
+  <polygon points="282,155 268,148 268,162" fill="#ff8fa3"/>
+  <text x="216" y="146" fill="#ff8fa3" font-size="16" font-family="sans-serif">F（A 对 B）</text>
+
+  <!-- B 对 A 的力 F'：向左 -->
+  <line x1="280" y1="180" x2="205" y2="180" stroke="#ffd166" stroke-width="3"/>
+  <polygon points="198,180 212,173 212,187" fill="#ffd166"/>
+  <text x="206" y="210" fill="#ffd166" font-size="16" font-family="sans-serif">F′（B 对 A）</text>
+
+  <!-- 标题 -->
+  <text x="90" y="270" fill="#c8d0e8" font-size="13" font-family="sans-serif">牛顿第三定律：F 与 F′ 大小相等、方向相反、作用在不同物体上</text>
+</svg>

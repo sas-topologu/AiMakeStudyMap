@@ -1,0 +1,191 @@
+// Canvas 共享基座：相机变换（pan/zoom、toWorld/toScreen）、星空背景、视口计算、星点绘制
+// 中心视图（renderer.js）与宏观视图（macroRenderer.js）共用；
+// 阶段 5 的路线高亮、阶段 6 的分享导出也应基于本类扩展。
+
+export const STATE_STYLE = {
+  dim: { fill: '#454b5e', alpha: 0.9, glow: 0, glowColor: 'transparent' },
+  open: { fill: '#8fb4ec', alpha: 1, glow: 9, glowColor: 'rgba(143,180,236,0.55)' },
+  passed: { fill: '#f4d58d', alpha: 1, glow: 14, glowColor: 'rgba(244,213,141,0.6)' },
+  lit: { fill: '#fff7cf', alpha: 1, glow: 26, glowColor: 'rgba(255,240,180,0.85)' },
+};
+
+export const CRED_STROKE = {
+  verified: '#34d399',
+  disputed: '#fbbf24',
+};
+
+// 四角星路径（星空星星样貌：上下左右四个尖角，内凹在 k·r 处）
+export function star4Path(ctx, x, y, r, k = 0.32) {
+  ctx.moveTo(x, y - r);
+  ctx.lineTo(x + r * k, y - r * k);
+  ctx.lineTo(x + r, y);
+  ctx.lineTo(x + r * k, y + r * k);
+  ctx.lineTo(x, y + r);
+  ctx.lineTo(x - r * k, y + r * k);
+  ctx.lineTo(x - r, y);
+  ctx.lineTo(x - r * k, y - r * k);
+  ctx.closePath();
+}
+
+// 十字星芒（星空星光样貌）：核心亮点 + 上下左右四条细长星芒
+export function drawSparkleStar(ctx, x, y, r, { arm = 4, core = 1, fill = '#eef3ff' } = {}) {
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  // 水平星芒
+  ctx.moveTo(x - r * arm, y);
+  ctx.lineTo(x, y - r * core);
+  ctx.lineTo(x + r * arm, y);
+  ctx.lineTo(x, y + r * core);
+  ctx.closePath();
+  ctx.fill();
+  // 垂直星芒
+  ctx.beginPath();
+  ctx.moveTo(x, y - r * arm);
+  ctx.lineTo(x - r * core, y);
+  ctx.lineTo(x, y + r * arm);
+  ctx.lineTo(x + r * core, y);
+  ctx.closePath();
+  ctx.fill();
+  // 核心亮点
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.9, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+export class CanvasStage {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.camera = { x: 0, y: 0, scale: 1 }; // x/y：屏幕中心对应的世界坐标
+    this.width = 0;
+    this.height = 0;
+    this.stars = [];
+    this._makeStars();
+  }
+
+  resize(w, h, dpr) {
+    this.width = w;
+    this.height = h;
+    this.canvas.width = Math.round(w * dpr);
+    this.canvas.height = Math.round(h * dpr);
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // ---- 坐标变换 ----
+  toWorld(sx, sy) {
+    const { x, y, scale } = this.camera;
+    return { x: (sx - this.width / 2) / scale + x, y: (sy - this.height / 2) / scale + y };
+  }
+
+  toScreen(wx, wy) {
+    const { x, y, scale } = this.camera;
+    return { x: (wx - x) * scale + this.width / 2, y: (wy - y) * scale + this.height / 2 };
+  }
+
+  // 当前视口的世界坐标范围（视口裁剪用；pad 为世界单位余量）
+  visibleWorldRect(pad = 0) {
+    const a = this.toWorld(0, 0);
+    const b = this.toWorld(this.width, this.height);
+    return { x0: a.x - pad, y0: a.y - pad, x1: b.x + pad, y1: b.y + pad };
+  }
+
+  _makeStars() {
+    // 幂律大小分层：85% 暗小星 / 12% 中星 / 3% 亮大星（星空层次感）；每颗星独立闪烁相位与周期
+    this.stars = Array.from({ length: 240 }, () => {
+      const tier = Math.random();
+      const r =
+        tier < 0.85
+          ? 0.3 + Math.random() * 0.7
+          : tier < 0.97
+            ? 1.0 + Math.random() * 0.7
+            : 1.7 + Math.random() * 0.8;
+      return {
+        x: Math.random(),
+        y: Math.random(),
+        r,
+        p: Math.random() * 0.5 + 0.1, // 视差系数
+        a: Math.random() * 0.5 + 0.25, // 基础亮度
+        twPhase: Math.random() * Math.PI * 2, // 呼吸闪烁相位（错开）
+        twSpeed: 0.4 + Math.random() * 1.4, // 闪烁角速度（0.4~1.8 rad/s）
+      };
+    });
+  }
+
+  // 深空背景 + 视差星空（屏幕空间；星星随时间呼吸闪烁，仅在有渲染循环时可见，静止零开销）
+  drawBackground() {
+    const { ctx, camera, width: w, height: h } = this;
+    const bg = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.75);
+    bg.addColorStop(0, '#101736');
+    bg.addColorStop(1, '#070a18');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+
+    const t = performance.now() / 1000;
+    for (const s of this.stars) {
+      const sx = (((s.x * w - camera.x * s.p * 0.3) % w) + w) % w;
+      const sy = (((s.y * h - camera.y * s.p * 0.3) % h) + h) % h;
+      const tw = 0.72 + 0.28 * Math.sin(t * s.twSpeed + s.twPhase); // 呼吸闪烁 0.72~1.0
+      ctx.globalAlpha = Math.min(1, s.a * tw);
+      ctx.fillStyle = '#cdd8ff';
+      ctx.beginPath();
+      ctx.arc(sx, sy, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // 进入世界坐标系（调用方负责 restore）
+  beginWorld() {
+    const { ctx, camera, width: w, height: h } = this;
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    ctx.scale(camera.scale, camera.scale);
+    ctx.translate(-camera.x, -camera.y);
+  }
+
+  // 星点：四态亮度 + 光晕 + lit 外环 + 可信度描边（verified 绿 / disputed 黄）
+  // 主体为四角星形（星空星星样貌），光晕/外环/可信度描边保留圆形光环
+  drawStarNode(node, x, y, r, { hover = false, center = false, alphaScale = 1 } = {}) {
+    const { ctx } = this;
+    const st = STATE_STYLE[node.state] ?? STATE_STYLE.dim;
+
+    ctx.save();
+    ctx.globalAlpha = st.alpha * alphaScale;
+    if (st.glow > 0) {
+      ctx.shadowColor = st.glowColor;
+      ctx.shadowBlur = (center ? st.glow * 1.6 : st.glow) * Math.min(1.4, this.camera.scale);
+    }
+    ctx.fillStyle = st.fill;
+    ctx.beginPath();
+    star4Path(ctx, x, y, r);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    if (node.state === 'lit') {
+      ctx.strokeStyle = 'rgba(255,240,180,0.5)';
+      ctx.lineWidth = 1.5 / this.camera.scale;
+      ctx.beginPath();
+      ctx.arc(x, y, r + 4, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    const cred = CRED_STROKE[node.credibility];
+    if (cred) {
+      ctx.strokeStyle = cred;
+      ctx.globalAlpha = (node.state === 'dim' ? 0.55 : 0.95) * alphaScale;
+      ctx.lineWidth = (center ? 2.2 : 1.4) / Math.sqrt(this.camera.scale);
+      ctx.beginPath();
+      ctx.arc(x, y, r + 1.5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    if (hover && !center) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 1.2 / this.camera.scale;
+      ctx.beginPath();
+      ctx.arc(x, y, r + 3.5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}

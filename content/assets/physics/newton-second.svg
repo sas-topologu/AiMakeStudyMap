@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300">
+  <!-- a-F 图象：质量一定时加速度与合外力成正比（过原点直线，斜率=1/m） -->
+  <rect width="480" height="300" fill="#0d1226" rx="8"/>
+
+  <!-- 坐标轴 -->
+  <line x1="70" y1="230" x2="440" y2="230" stroke="#8892b0" stroke-width="1.5"/>
+  <line x1="70" y1="20" x2="70" y2="245" stroke="#8892b0" stroke-width="1.5"/>
+  <polygon points="440,230 432,226 432,234" fill="#8892b0"/>
+  <polygon points="70,20 66,28 74,28" fill="#8892b0"/>
+  <text x="444" y="234" fill="#8892b0" font-size="14" font-family="sans-serif">F</text>
+  <text x="76" y="30" fill="#8892b0" font-size="14" font-family="sans-serif">a</text>
+
+  <!-- 过原点直线 -->
+  <line x1="70" y1="230" x2="430" y2="66" stroke="#7cc7ff" stroke-width="2.5"/>
+
+  <!-- 一个数据点 -->
+  <circle cx="250" cy="148" r="4.5" fill="#ffd166"/>
+  <line x1="250" y1="230" x2="250" y2="148" stroke="#5a6488" stroke-width="1" stroke-dasharray="4,4"/>
+  <text x="256" y="246" fill="#8892b0" font-size="13" font-family="sans-serif">F</text>
+  <text x="256" y="140" fill="#ffd166" font-size="13" font-family="sans-serif">a=F/m</text>
+
+  <!-- 标注 -->
+  <text x="150" y="110" fill="#c8d0e8" font-size="14" font-family="sans-serif">a ∝ F（质量一定）</text>
+  <text x="150" y="130" fill="#c8d0e8" font-size="13" font-family="sans-serif">斜率 = 1/m</text>
+
+  <!-- 标题 -->
+  <text x="70" y="280" fill="#c8d0e8" font-size="13" font-family="sans-serif">牛顿第二定律：F=ma，质量一定时 a 与 F 成正比，图线过原点</text>
+</svg>
