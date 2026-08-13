@@ -72,7 +72,7 @@ import { useStarmapStore } from '../stores/starmap.js';
 import { useUiStore } from '../stores/ui.js';
 import { useNavStore } from '../stores/navigation.js';
 import { useFxSettings } from '../composables/useFxSettings.js';
-import { MacroRenderer, LOD } from '../starmap/macroRenderer.js';
+import { MacroRenderer, LOD, lodWeights } from '../starmap/macroRenderer.js';
 import { layoutUniverse, layoutConstellation, makeSyntheticGraph } from '../starmap/macroLayout.js';
 
 const STATE_LABEL = { dim: '暗淡', open: '开放', passed: '通关', lit: '点亮' };
@@ -105,15 +105,26 @@ let exitScale = LOD.EXIT; // 进入星座时按 fitScale 收紧
 let anim = null; // 相机动画 rAF
 let twinkleRaf = null; // 宇宙视图呼吸闪烁循环（低功耗：仅宇宙模式、页面可见、非 reduced-motion）
 
-// ---- 宇宙视图呼吸闪烁：星系星云/星光随时间明暗变化（静止也有生命力）----
+// ---- 宏观视图呼吸闪烁：星系星云 / 星座星团随时间明暗变化（静止也有生命力）----
+// 宇宙视图全开；星座视图仅星团/中档（聚合渲染，成本低）闪烁，放大到节点档暂停（内容多）
 function startTwinkle() {
   stopTwinkle();
   if (fx.reducedMotion.value) return; // 尊重减弱动效
   const loop = () => {
     twinkleRaf = null;
-    if (document.hidden || mode.value !== 'universe') return; // 页面隐藏/离开宇宙视图即停
-    renderer.render();
-    twinkleRaf = requestAnimationFrame(loop);
+    if (document.hidden) return; // 页面隐藏即停
+    if (mode.value === 'universe') {
+      renderer.render();
+      twinkleRaf = requestAnimationFrame(loop);
+      return;
+    }
+    if (mode.value === 'constellation') {
+      const w = lodWeights(renderer.camera.scale);
+      if (w.cluster > 0.02 || w.mid > 0.02) renderer.render(); // 星团/中档呼吸；节点档跳过
+      twinkleRaf = requestAnimationFrame(loop);
+      return;
+    }
+    // 其他模式停止
   };
   twinkleRaf = requestAnimationFrame(loop);
 }
@@ -125,7 +136,7 @@ function stopTwinkle() {
 
 function onVisibility() {
   if (document.hidden) stopTwinkle();
-  else if (mode.value === 'universe') startTwinkle();
+  else startTwinkle();
 }
 
 // ---- 数据 ----
@@ -215,7 +226,7 @@ function enterGalaxy(subject, { animate = true } = {}) {
   renderer.setConstellation({ nodes, edges, pos });
   mode.value = 'constellation';
   currentSubject.value = subject;
-  stopTwinkle(); // 进入星座视图：内容多，暂停宇宙闪烁循环
+  startTwinkle(); // 星座视图星团档也呼吸闪烁（节点档由循环内按 LOD 暂停）
   universeCam = universeCam ?? { ...renderer.camera };
 
   // 适配视野

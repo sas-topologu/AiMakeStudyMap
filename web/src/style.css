@@ -825,6 +825,52 @@ code {
   color: var(--danger);
 }
 
+/* ---- 错题重练 ---- */
+.review-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.review-options .review-option {
+  justify-content: flex-start;
+  text-align: left;
+  width: 100%;
+}
+.review-option.ok {
+  border-color: var(--ok);
+  background: rgba(52, 211, 153, 0.12);
+  color: var(--ok);
+}
+.review-option.bad {
+  border-color: var(--danger);
+  background: rgba(244, 63, 94, 0.12);
+  color: var(--danger);
+}
+.review-fill {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ---- 对话框关闭按钮 ---- */
+.panel-close {
+  float: right;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  line-height: 1;
+}
+.panel-close:hover {
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.06);
+}
+
 /* ---- 宏观视图占位 ---- */
 .map-page {
   min-height: 100%;

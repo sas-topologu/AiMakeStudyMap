@@ -20,6 +20,7 @@ export const STRONG_DAMP = 3.2; // 强引力阻尼（收敛，接近眼位减速
 export const FLY_TIMEOUT = 8; // 未落位超时（秒）→ 消失（含转向飞行时间）
 export const REVEAL_RATIO = 0.9; // 眼位填充比例达此值 → 图像显现
 export const CYCLE_TOTAL = 20; // 完整生命周期（秒）
+export const DISMISS_S = 1.2; // 生命周期结束后的消散时长（星星淡出 → 重组，避免瞬间重置）
 export const DEGRADE_FPS = 30;
 export const DEGRADE_WINDOW_S = 2;
 
@@ -58,6 +59,8 @@ export class ParticleSystem {
         filled: 0,
         reveal: false,
         cycle: 0,
+        dismissing: false, // 消散相：星星淡出后重组
+        dismissT: 0,
         particles: [],
       }));
     this.time = 0;
@@ -72,6 +75,8 @@ export class ParticleSystem {
     g.cycle = 0;
     g.filled = 0;
     g.reveal = false;
+    g.dismissing = false;
+    g.dismissT = 0;
     for (const s of g.slots) s.occupied = false;
     g.particles = []; // 重新生成
   }
@@ -146,8 +151,20 @@ export class ParticleSystem {
     this.time += dt;
 
     for (const g of this.groups) {
+      // 消散相：星星淡出，结束再真正重置（重组）
+      if (g.dismissing) {
+        g.dismissT -= dt;
+        for (const p of g.particles) p.alpha = Math.max(0, p.alpha - dt * 2.5);
+        if (g.dismissT <= 0) this._resetGroup(g);
+        continue;
+      }
       g.cycle += dt;
-      if (g.cycle >= CYCLE_TOTAL) this._resetGroup(g); // 生命周期结束 → 重置
+      if (g.cycle >= CYCLE_TOTAL) {
+        // 生命周期结束 → 进入消散相（星星淡出后重组，不瞬间消失）
+        g.dismissing = true;
+        g.dismissT = DISMISS_S;
+        continue;
+      }
 
       // 补足星星
       while (g.particles.length < this.maxFlying) g.particles.push(this._spawnFlying(g));
@@ -248,7 +265,9 @@ export class ParticleSystem {
     for (const g of this.groups) {
       const ox = g.em.offset.x;
       const oy = g.em.offset.y;
-      const lineAlpha = g.reveal ? 0.7 : 0; // 初始完全透明，填满后显现
+      // 消散相：星座线与标题随星星一起淡出（1 → 0）
+      const dismissK = g.dismissing ? Math.max(0, g.dismissT / DISMISS_S) : 1;
+      const lineAlpha = g.reveal ? 0.7 * dismissK : 0; // 初始完全透明，填满后显现
       for (const path of g.em.paths) {
         paths.push({
           points: path.map((pt) => ({ x: pt.x + ox, y: pt.y + oy })),
@@ -259,7 +278,7 @@ export class ParticleSystem {
         slots.push({ x: s.x + ox, y: s.y + oy, occupied: s.occupied });
       }
       if (g.em.caption) {
-        captions.push({ text: g.em.caption, alpha: g.reveal ? 0.75 : 0, x: ox, y: oy + 92 });
+        captions.push({ text: g.em.caption, alpha: g.reveal ? 0.75 * dismissK : 0, x: ox, y: oy + 92 });
       }
     }
     for (const g of this.groups) {

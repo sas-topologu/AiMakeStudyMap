@@ -1,6 +1,6 @@
 // 粒子系统单测：图像范围生成 / 落入眼位 / 未落位消失 / 90% 显现 / 20s 生命周期 / 速度 0 / 降级
 import { describe, it, expect } from 'vitest';
-import { ParticleSystem, DEGRADE_FPS, CYCLE_TOTAL } from '../particles.js';
+import { ParticleSystem, DEGRADE_FPS, CYCLE_TOTAL, DISMISS_S } from '../particles.js';
 const EMBLEM = {
   paths: [[{ x: -30, y: 0 }, { x: 30, y: 0 }]], // 一条横线（星座连线）
   slots: [
@@ -65,7 +65,7 @@ describe('ParticleSystem 眼位填充', () => {
     expect(ps.renderState().paths[0].alpha).toBeGreaterThan(0.5); // 显现
   });
 
-  it('生命周期满 20 秒后重置循环（重新透明、眼位清空）', () => {
+  it('生命周期满 20 秒后进入消散相，结束后重置循环', () => {
     const ps = makePs({ maxFlying: 1 });
     const g = ps.groups[0];
     for (const s of g.slots) s.occupied = true;
@@ -73,9 +73,18 @@ describe('ParticleSystem 眼位填充', () => {
     g.reveal = true;
     g.cycle = CYCLE_TOTAL - 0.001;
     ps.tick(1 / 60);
-    expect(g.cycle).toBe(0); // 已重置
+    expect(g.dismissing).toBe(true); // 进入消散相（不瞬间重置）
+    expect(g.dismissT).toBe(DISMISS_S); // 刚进入，尚未递减
+    ps.tick(1 / 60); // 消散开始递减
+    // 消散期：星座线 alpha 随消散淡出
+    expect(ps.renderState().paths[0].alpha).toBeLessThan(0.7);
+    // 消散结束后真正重置（重新透明、眼位清空、星星重组）
+    const frames = Math.ceil(DISMISS_S * 60) + 2;
+    for (let i = 0; i < frames; i += 1) ps.tick(1 / 60);
+    expect(g.dismissing).toBe(false);
+    expect(g.cycle).toBeLessThan(0.1); // 已重置并重新开始新周期
     expect(g.reveal).toBe(false);
-    expect(g.filled).toBe(0); // 新星星一帧内尚未落定
+    expect(g.filled).toBe(0);
     expect(g.particles.every((p) => p.state !== 'locked')).toBe(true);
   });
 

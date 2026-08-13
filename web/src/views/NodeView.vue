@@ -136,6 +136,12 @@
             闯关需开启学习倒计时（不可取消，到时强制收卷）
           </p>
         </section>
+
+        <!-- 错题复盘入口（本地错题队列，任何状态下可复习） -->
+        <section v-if="reviewCount > 0" class="panel review-box">
+          <button class="btn ghost" @click="startReview">🧠 错题重练（{{ reviewCount }}）</button>
+          <p class="muted small">重练答对的题目会自动移出错题本</p>
+        </section>
       </main>
 
       <!-- 社交区（阶段 6）：dim 可浏览不可发言（组件内按 state 控制） -->
@@ -211,6 +217,48 @@
       </div>
     </div>
 
+    <!-- 错题重练覆盖层（一题一判，答对即移出错题本） -->
+    <div v-if="view === 'review' && reviewQ.length" class="quiz-overlay">
+      <div class="quiz-box panel">
+        <header class="quiz-head">
+          <span>🧠 错题重练 · 剩余 {{ reviewQ.length }} 题</span>
+          <span v-if="reviewQ[0]" class="muted small">{{ reviewQ[0].nodeTitle }} · 错 {{ reviewQ[0].wrongCount }} 次</span>
+        </header>
+        <p class="quiz-stem">{{ reviewQ[0].stem }}</p>
+        <div v-if="reviewQ[0].type === 'choice'" class="quiz-options review-options">
+          <button
+            v-for="(opt, i) in reviewQ[0].options"
+            :key="i"
+            class="quiz-option review-option"
+            :class="reviewPicked !== null ? (reviewQ[0].answer === i ? 'ok' : reviewPicked === i ? 'bad' : '') : ''"
+            :disabled="reviewPicked !== null"
+            @click="pickReview(i)"
+          >
+            {{ String.fromCharCode(65 + i) }}. {{ opt }}
+          </button>
+        </div>
+        <div v-else class="review-fill">
+          <input
+            v-model="reviewFill"
+            class="input"
+            placeholder="填写答案"
+            :disabled="reviewPicked !== null"
+            @keydown.enter.prevent="confirmReviewFill"
+          />
+          <button v-if="reviewPicked === null" class="btn primary" @click="confirmReviewFill">确认</button>
+        </div>
+        <p v-if="reviewPicked !== null" :class="reviewRight ? 'ok-text' : 'error-text'">
+          {{ reviewRight ? '✓ 回答正确，已移出错题本' : '✗ 未答对，留待下次' }}
+          <small class="muted">正确答案：{{ reviewAnswerText }}</small>
+        </p>
+        <p v-if="reviewPicked !== null" class="muted small">{{ reviewQ[0].explanation }}</p>
+        <div class="dialog-actions">
+          <button class="btn ghost" @click="endReview">结束复习</button>
+          <button v-if="reviewPicked !== null" class="btn primary" @click="nextReview">下一题</button>
+        </div>
+      </div>
+    </div>
+
     <TermLayers :layers="termLayers" @close="closeTerm" @close-all="termLayers = []" @term="onTerm" />
     <TimerDialog :visible="timerVisible" @close="timerVisible = false" @started="onTimerStarted" />
     <CorrectionDialog
@@ -250,6 +298,7 @@ import {
   isSupplementShown,
   mediaSrc,
 } from '../utils/readingMode.js';
+import * as reviewStore from '../utils/reviewStore.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -265,13 +314,72 @@ const loading = ref(true);
 const error = ref('');
 const tab = ref('card');
 
-const view = ref('card'); // card | quiz | result
+const view = ref('card'); // card | quiz | result | review
 const paper = ref(null);
 const answers = ref({});
 const result = ref(null);
 const unlocked = ref([]);
 const submitting = ref(false);
 const quizError = ref('');
+
+// ---- 错题复盘状态 ----
+const reviewCount = ref(0);
+const reviewQ = ref([]); // 当前复习队列（随机序，取出一题作当前题）
+const reviewPicked = ref(null); // choice=选中下标；fill=提交标记
+const reviewFill = ref('');
+const reviewRight = ref(false);
+const reviewAnswerText = computed(() => {
+  const q = reviewQ.value[0];
+  if (!q) return '';
+  if (q.type === 'choice' && typeof q.answer === 'number') {
+    return `${String.fromCharCode(65 + q.answer)}. ${q.options?.[q.answer] ?? ''}`;
+  }
+  return String(q.answer);
+});
+function refreshReviewCount() {
+  reviewCount.value = reviewStore.reviewCount();
+}
+function startReview() {
+  reviewQ.value = reviewStore.reviewQueue(12);
+  reviewPicked.value = null;
+  reviewFill.value = '';
+  if (!reviewQ.value.length) {
+    ui.toast('暂无错题', 'info');
+    return;
+  }
+  view.value = 'review';
+}
+function pickReview(i) {
+  if (reviewPicked.value !== null) return;
+  const q = reviewQ.value[0];
+  reviewPicked.value = i;
+  reviewRight.value = i === q.answer;
+  if (reviewRight.value) {
+    reviewStore.removeReviewQuestion(q.nodeId, q.seq);
+    refreshReviewCount();
+  }
+}
+function confirmReviewFill() {
+  if (reviewPicked.value !== null) return;
+  const q = reviewQ.value[0];
+  reviewPicked.value = true;
+  reviewRight.value = String(reviewFill.value ?? '').trim() === String(q.answer).trim();
+  if (reviewRight.value) {
+    reviewStore.removeReviewQuestion(q.nodeId, q.seq);
+    refreshReviewCount();
+  }
+}
+function nextReview() {
+  reviewQ.value.shift();
+  reviewPicked.value = null;
+  reviewFill.value = '';
+  if (!reviewQ.value.length) endReview();
+}
+function endReview() {
+  reviewQ.value = [];
+  view.value = 'card';
+  refreshReviewCount();
+}
 
 const timerVisible = ref(false);
 const pendingMode = ref('pass');
@@ -400,6 +508,28 @@ async function submit() {
     state.value = r.state;
     view.value = 'result';
 
+    // 收集错题入本地复习队列（答错的题才入列）
+    if (r.perQuestion) {
+      const qs = paper.value?.questions ?? [];
+      for (const pq of r.perQuestion) {
+        if (pq.correct) continue;
+        const q = qs.find((x) => x.seq === pq.seq);
+        if (!q) continue;
+        reviewStore.addWrongQuestion({
+          nodeId: nodeId.value,
+          nodeTitle: card.value?.title ?? '',
+          seq: pq.seq,
+          type: q.type,
+          stem: q.stem,
+          options: q.options,
+          answer: pq.answer,
+          explanation: pq.explanation,
+          difficulty: q.difficulty,
+        });
+      }
+      refreshReviewCount();
+    }
+
     if (r.result === 'passed' || r.result === 'lit') {
       // 对比邻域状态，找出新解锁（dim → 非 dim）的相邻节点
       try {
@@ -460,4 +590,5 @@ watch(nodeId, () => {
 
 load();
 timer.restore();
+refreshReviewCount();
 </script>

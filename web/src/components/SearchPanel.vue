@@ -4,7 +4,10 @@
 <template>
   <div v-if="visible" class="overlay" @click.self="$emit('close')">
     <div class="panel dialog search-panel">
-      <h3>搜索 / 跃迁 / 导航</h3>
+      <h3>
+        搜索 / 跃迁 / 导航
+        <button class="panel-close" title="关闭" @click="$emit('close')">✕</button>
+      </h3>
       <input
         ref="inputEl"
         v-model.trim="q"
@@ -93,7 +96,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue';
+import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../api/client.js';
 import { useAuthStore } from '../stores/auth.js';
@@ -129,6 +132,13 @@ const routeError = ref('');
 const noRoute = ref(false);
 const inputEl = ref(null);
 let debounceTimer = null;
+
+// Escape 或失去焦点关闭
+function onKey(e) {
+  if (e.key === 'Escape') emit('close');
+}
+onMounted(() => window.addEventListener('keydown', onKey));
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 
 watch(
   () => props.visible,

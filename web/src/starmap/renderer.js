@@ -188,7 +188,7 @@ export class StarMapRenderer extends CanvasStage {
       for (const p of P.points) {
         if (p.alpha <= 0.01) continue;
         if (p.state === 'locked') {
-          ctx.globalAlpha = 0.95;
+          ctx.globalAlpha = Math.min(0.95, p.alpha); // 正常 0.95；消散相随 alpha 淡出
           ctx.fillStyle = '#ffffff';
           drawSparkleStar(ctx, p.x, p.y, p.r * 0.8, { arm: 1.6, core: 0.9 });
         } else if (p.state === 'slotting') {
