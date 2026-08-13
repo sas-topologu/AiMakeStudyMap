@@ -15,6 +15,7 @@
     "start": "node server/src/index.js",
     "import": "node content/tools/import.js",
     "scan": "node content/tools/scan.js",
+    "audit": "node content/tools/audit.js",
     "test": "npm test -w server",
     "deploy": "npm run build && npm run import && npm start"
   }
