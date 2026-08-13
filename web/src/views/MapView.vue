@@ -307,8 +307,14 @@ function onPointerMove(e) {
       isPanning.value = true;
     }
     if (moved) {
-      renderer.camera.x -= (e.offsetX - prev.x) / renderer.camera.scale;
-      renderer.camera.y -= (e.offsetY - prev.y) / renderer.camera.scale;
+      // 平移需补偿视口旋转：屏幕位移先反向旋转再换算世界坐标，拖拽方向与画面移动匹配
+      const rot = renderer.camera.rot ?? 0;
+      const dx = e.offsetX - prev.x;
+      const dy = e.offsetY - prev.y;
+      const c = Math.cos(-rot);
+      const s = Math.sin(-rot);
+      renderer.camera.x -= (dx * c - dy * s) / renderer.camera.scale;
+      renderer.camera.y -= (dx * s + dy * c) / renderer.camera.scale;
       renderer.render();
     }
     return;
