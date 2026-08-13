@@ -97,13 +97,9 @@ function onUp() {
 }
 
 function onWheel(e) {
-  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  const factor = e.deltaY < 0 ? 1.08 : 1 / 1.08; // 低灵敏度，屏幕中心缩放
   const cam = renderer.camera;
-  const next = Math.min(4, Math.max(0.05, cam.scale * factor));
-  const w = renderer.toWorld(e.offsetX, e.offsetY);
-  cam.scale = next;
-  cam.x = w.x - (e.offsetX - renderer.width / 2) / next;
-  cam.y = w.y - (e.offsetY - renderer.height / 2) / next;
+  cam.scale = Math.min(4, Math.max(0.05, cam.scale * factor));
   renderer.render();
 }
 

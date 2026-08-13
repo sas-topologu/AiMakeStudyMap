@@ -277,16 +277,15 @@ export class MacroRenderer extends CanvasStage {
         ctx.restore();
       }
 
-      // 学科名 + 节点数：择地位（布局时选在学科外围，屏幕恒定字号）
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = `rgba(226,232,255,${(hot ? 1 : 0.92) * alpha})`;
-      ctx.font = `600 ${15 / camera.scale}px system-ui, "PingFang SC", "Microsoft YaHei", sans-serif`;
-      ctx.fillText(g.subject, lp.x, lp.y);
-      ctx.fillStyle = `rgba(139,149,184,${0.88 * alpha})`;
-      ctx.font = `${11 / camera.scale}px system-ui, sans-serif`;
-      ctx.textBaseline = 'top';
-      ctx.fillText(`${g.count} 节点`, lp.x, lp.y + 9 / camera.scale);
+      // 学科名 + 节点数：择地位（布局时选在学科外围），屏幕恒定字号、始终水平
+      this.drawScreenText(g.subject, lp.x, lp.y, {
+        font: '600 15px system-ui, "PingFang SC", "Microsoft YaHei", sans-serif',
+        fill: `rgba(226,232,255,${(hot ? 1 : 0.92) * alpha})`,
+      });
+      this.drawScreenText(`${g.count} 节点`, lp.x, lp.y + 24 / camera.scale, {
+        font: '11px system-ui, sans-serif',
+        fill: `rgba(139,149,184,${0.88 * alpha})`,
+      });
     }
   }
 
@@ -368,10 +367,11 @@ export class MacroRenderer extends CanvasStage {
         ctx.fill();
       }
 
-      // 聚合数
-      ctx.fillStyle = `rgba(255,255,255,${0.9 * alpha})`;
-      ctx.font = `600 ${12 / camera.scale}px system-ui, sans-serif`;
-      ctx.fillText(String(b.count), b.cx, b.cy);
+      // 聚合数（屏幕恒定字号、始终水平）
+      this.drawScreenText(String(b.count), b.cx, b.cy, {
+        font: '600 12px system-ui, sans-serif',
+        fill: `rgba(255,255,255,${0.9 * alpha})`,
+      });
 
       const s = this.toScreen(b.cx, b.cy);
       this.frameClusters.push({ cx: b.cx, cy: b.cy, x: s.x, y: s.y, r: r * camera.scale, count: b.count });
@@ -479,20 +479,18 @@ export class MacroRenderer extends CanvasStage {
       this.drawStarNode(node, it.x, it.y, 6, { hover: it.id === hoverId, alphaScale: alpha });
     }
 
-    // 标题（屏幕恒定字号）
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.font = `${11 / camera.scale}px system-ui, "PingFang SC", "Microsoft YaHei", sans-serif`;
+    // 标题（屏幕恒定字号、始终水平，不随视口旋转）
     for (const it of visible) {
       const node = this.data.nodesById[it.id];
-      ctx.fillStyle =
-        node?.state === 'dim'
-          ? `rgba(170,180,210,${0.6 * alpha})`
-          : `rgba(226,232,255,${0.88 * alpha})`;
-      ctx.fillText(node?.title ?? it.id, it.x, it.y + 9 / camera.scale);
+      this.drawScreenText(node?.title ?? it.id, it.x, it.y + 9 / camera.scale, {
+        font: '11px system-ui, "PingFang SC", "Microsoft YaHei", sans-serif',
+        fill:
+          node?.state === 'dim'
+            ? `rgba(170,180,210,${0.6 * alpha})`
+            : `rgba(226,232,255,${0.88 * alpha})`,
+        baseline: 'top',
+      });
     }
-    ctx.restore();
 
     this._drawHighlight(alpha);
     this._drawHotEdges(alpha);

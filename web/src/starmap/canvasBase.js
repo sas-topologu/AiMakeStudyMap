@@ -71,9 +71,24 @@ export class CanvasStage {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
+  // 屏幕恒定文字：位置给世界坐标，自动转屏幕空间并反向旋转——
+  // 视口旋转时文字始终保持水平，字号恒定为屏幕像素（不随缩放/旋转变化）
+  drawScreenText(txt, wx, wy, { font, fill, align = 'center', baseline = 'middle' } = {}) {
+    const p = this.toScreen(wx, wy);
+    const { ctx, camera } = this;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    if (camera.rot) ctx.rotate(-camera.rot);
+    ctx.font = font;
+    ctx.fillStyle = fill;
+    ctx.textAlign = align;
+    ctx.textBaseline = baseline;
+    ctx.fillText(txt, 0, 0);
+    ctx.restore();
+  }
+
   // ---- 坐标变换 ----
-  toWorld(sx, sy) {
-    const { x, y, scale, rot = 0 } = this.camera;
+  toWorld(sx, sy) {    const { x, y, scale, rot = 0 } = this.camera;
     const dx = sx - this.width / 2;
     const dy = sy - this.height / 2;
     const c = Math.cos(-rot);

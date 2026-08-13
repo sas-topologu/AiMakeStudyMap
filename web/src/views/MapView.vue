@@ -391,13 +391,10 @@ function onDblClick(e) {
 
 function onWheel(e) {
   cancelAnim();
-  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  const factor = e.deltaY < 0 ? 1.08 : 1 / 1.08; // 低灵敏度
   const cam = renderer.camera;
-  const next = Math.min(4, Math.max(minScale, cam.scale * factor)); // 连续缩放，clamp 防缩没/缩爆
-  const w = renderer.toWorld(e.offsetX, e.offsetY);
-  cam.scale = next;
-  cam.x = w.x - (e.offsetX - renderer.width / 2) / next;
-  cam.y = w.y - (e.offsetY - renderer.height / 2) / next;
+  // 以屏幕中心为锚点缩放（相机 x/y 即屏幕中心世界坐标，无需按光标调整）
+  cam.scale = Math.min(4, Math.max(minScale, cam.scale * factor));
   renderer.render();
 }
 
