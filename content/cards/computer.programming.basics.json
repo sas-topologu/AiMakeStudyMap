@@ -1,0 +1,201 @@
+{
+  "id": "computer.programming.basics",
+  "title": "程序设计基础",
+  "subject": "计算机",
+  "category": "自然科学",
+  "credibility": "verified",
+  "difficulty": 2,
+  "summary": "程序设计是用计算机语言表达算法求解问题的过程。本卡以 Python 为例介绍变量与数据类型、三种基本控制结构、函数与模块、输入输出与调试。",
+  "objectives": [
+    "理解程序、编程语言与算法的关系，能区分编译型与解释型语言",
+    "掌握变量、基本数据类型（整数、浮点、字符串、布尔）与运算",
+    "会用顺序、分支（if/elif/else）与循环（for/while）三种控制结构",
+    "能定义并调用函数，理解参数传递与返回值",
+    "能读懂常见报错信息并做简单调试"
+  ],
+  "sections": [
+    {
+      "heading": "程序、语言与算法",
+      "tier": "core",
+      "body": "[[程序]]是用[[编程语言]]写出的、让计算机执行的一串指令。编写程序前要先有[[算法]]——求解问题的确定、有限的步骤。编程语言按抽象层次分为[[机器语言]]、[[汇编语言]]与[[高级语言]]；高级语言又分[[编译型语言]]（如 C、Go，整体翻译成机器码再运行）与[[解释型语言]]（如 Python，逐行解释执行）。本卡以 Python 为例，语法简洁、贴近自然语言，适合入门。"
+    },
+    {
+      "heading": "变量与数据类型",
+      "tier": "core",
+      "body": "[[变量]]是给数据起的名字，Python 中 `x = 5` 表示把整数 5 赋给变量 x。基本[[数据类型]]有：[[整数]]（int）、[[浮点数]]（float）、[[字符串]]（str，用引号括起）、[[布尔值]]（bool，True/False）。运算符包括算术（`+ - * / // % **`）、比较（`== != < >`）与逻辑（`and or not`）。Python 是动态类型语言——变量类型由所赋的值决定，可用 `type(x)` 查看。"
+    },
+    {
+      "heading": "顺序与分支结构",
+      "tier": "core",
+      "body": "程序默认自上而下顺序执行。[[分支结构]]用 `if` 按条件选择执行路径：`if 条件: … elif 条件: … else: …`，注意 Python 用**缩进**表示代码块。例如判断成绩等级：`if score >= 90: print('A')`。分支的条件是布尔表达式，`0`、空字符串、`None` 等被视为假值。"
+    },
+    {
+      "heading": "循环结构",
+      "tier": "core",
+      "body": "[[循环]]让一段代码重复执行。`for x in 序列:` 遍历序列（如 `range(5)` 产生 0~4），`while 条件:` 在条件为真时反复执行。循环可用 `break` 提前跳出、`continue` 跳过本轮。典型应用：求和 `s = sum(range(1, 101))` 即 1+2+…+100。写循环要警惕[[死循环]]——条件永远为真导致程序卡住。"
+    },
+    {
+      "heading": "函数与模块",
+      "tier": "core",
+      "body": "[[函数]]把一段可复用的逻辑封装起来：`def 名称(参数): … return 结果`。函数可带[[参数]]（调用时传入）与[[返回值]]（结果交回调用处）。内置函数如 `print`、`len`、`max` 开箱即用；标准库与第三方库以[[模块]]形式导入，如 `import math` 后用 `math.sqrt(9)`。函数化让程序结构清晰、避免重复代码。"
+    },
+    {
+      "heading": "输入输出与调试",
+      "tier": "core",
+      "body": "用 `input('提示')` 从键盘读取输入（返回字符串，需用 `int()` 转换），用 `print(…)` 输出结果。调试三步法：①读懂[[报错信息]]（如 `NameError: name 'x' is not defined` 说明变量未定义）；②用 `print` 在关键位置打印中间值；③修正后重跑。常见的还有 `TypeError`（类型不匹配）、`SyntaxError`（语法错误）。"
+    },
+    {
+      "heading": "小结",
+      "tier": "core",
+      "body": "①算法 → 程序：用语言把解题步骤表达出来；②变量存数据，类型决定可做的运算；③三大控制结构：顺序、分支、循环，可表达一切程序逻辑；④函数封装复用，模块组织代码；⑤调试从读懂报错开始。"
+    }
+  ],
+  "media": [],
+  "examples": [
+    {
+      "id": "ex1",
+      "title": "用分支判断奇偶",
+      "problem": "写程序：输入一个整数，判断并输出它是奇数还是偶数。",
+      "steps": [
+        "读取输入并转整数：n = int(input())",
+        "判断：if n % 2 == 0: print('偶数')",
+        "否则：else: print('奇数')"
+      ],
+      "answer": "if n % 2 == 0: print('偶数') else: print('奇数')"
+    },
+    {
+      "id": "ex2",
+      "title": "用循环求和",
+      "problem": "用 for 循环求 1 到 100 的所有整数之和。",
+      "steps": [
+        "初始化 s = 0",
+        "for i in range(1, 101): s += i",
+        "print(s)，结果为 5050"
+      ],
+      "answer": "s = 0; for i in range(1,101): s += i; print(s) → 5050"
+    },
+    {
+      "id": "ex3",
+      "title": "定义求面积函数",
+      "problem": "定义一个函数 area(r) 计算半径 r 的圆面积（π 取 3.14159），并调用求半径 2 的面积。",
+      "steps": [
+        "def area(r): return 3.14159 * r * r",
+        "调用：area(2)",
+        "结果 ≈ 12.56636"
+      ],
+      "answer": "area(2) ≈ 12.56636"
+    }
+  ],
+  "pitfalls": [
+    "Python 缩进即代码块：缩进不一致会导致 IndentationError 或逻辑错误",
+    "input() 返回字符串：直接做数学运算前必须 int()/float() 转换，否则报 TypeError",
+    "混淆 == 与 =：== 是比较是否相等，= 是赋值",
+    "忘记给循环写退出条件造成死循环：确保 while 条件最终为假"
+  ],
+  "emblems": [
+    { "type": "formula", "content": "if x>0: y=x", "caption": "分支结构" },
+    { "type": "formula", "content": "print(\"Hello\")", "caption": "输出" },
+    { "type": "formula", "content": "s=Σᵢ₌₁ⁿᵢ", "caption": "循环求和" }
+  ],
+  "terms": {
+    "程序": "用编程语言写出的、计算机按顺序执行的指令集合。",
+    "编程语言": "人与计算机沟通的形式化语言，分机器、汇编与高级语言。",
+    "算法": "求解问题的一系列确定、有限、可执行的步骤。",
+    "机器语言": "计算机能直接执行的二进制指令形式。",
+    "汇编语言": "用助记符表示机器指令的低级语言，需汇编器翻译。",
+    "高级语言": "接近自然语言与数学的编程语言，如 Python、C、Java。",
+    "编译型语言": "先整体翻译为机器码再运行的语言，如 C、Go。",
+    "解释型语言": "逐行翻译执行的语言，如 Python、JavaScript。",
+    "变量": "给数据起的名字，指向内存中存放的值。",
+    "数据类型": "数据的种类与可做的运算，如整数、浮点、字符串、布尔。",
+    "整数": "int，不带小数部分的数，Python 中可任意大。",
+    "浮点数": "float，带小数部分的数，如 3.14。",
+    "字符串": "str，用引号括起的文本序列。",
+    "布尔值": "bool，只有 True 与 False 两个取值。",
+    "分支结构": "根据条件选择不同执行路径的结构，对应 if/elif/else。",
+    "循环": "重复执行某段代码的结构，对应 for/while。",
+    "死循环": "条件恒为真、永不退出的循环，会卡住程序。",
+    "函数": "封装一段可复用逻辑并返回结果的代码单元。",
+    "参数": "调用函数时传入的值，供函数内部使用。",
+    "返回值": "函数执行后交回调用处的结果。",
+    "模块": "组织代码与函数的文件或库，用 import 导入。",
+    "报错信息": "程序出错时解释器/编译器给出的错误类型与位置提示。"
+  },
+  "relations": {
+    "prerequisites": ["computer.architecture.basics"],
+    "related": ["math.algebra.expression"]
+  },
+  "questionBank": [
+    {
+      "id": "q1",
+      "type": "choice",
+      "stem": "Python 属于哪一类编程语言",
+      "options": ["解释型高级语言", "编译型高级语言", "机器语言", "汇编语言"],
+      "answer": 0,
+      "explanation": "Python 是解释型高级语言，逐行翻译执行。",
+      "difficulty": 1
+    },
+    {
+      "id": "q2",
+      "type": "choice",
+      "stem": "下列哪个是字符串（str）字面量",
+      "options": ["'hello'", "42", "3.14", "True"],
+      "answer": 0,
+      "explanation": "带引号的 'hello' 是字符串；42、3.14、True 分别是整数、浮点、布尔。",
+      "difficulty": 1
+    },
+    {
+      "id": "q3",
+      "type": "choice",
+      "stem": "Python 中表示「x 不等于 5」的写法是",
+      "options": ["x != 5", "x =! 5", "x ≠ 5", "not x = 5"],
+      "answer": 0,
+      "explanation": "比较运算用 != 表示不等于；= 是赋值。",
+      "difficulty": 1
+    },
+    {
+      "id": "q4",
+      "type": "choice",
+      "stem": "range(3) 产生的序列是",
+      "options": ["0, 1, 2", "1, 2, 3", "0, 1, 2, 3", "3, 2, 1"],
+      "answer": 0,
+      "explanation": "range(n) 从 0 到 n-1，range(3) = 0,1,2。",
+      "difficulty": 1
+    },
+    {
+      "id": "q5",
+      "type": "fill",
+      "stem": "运行 print(17 % 5) 输出 ____",
+      "answer": "2",
+      "explanation": "17 除以 5 余 2，% 是取余运算符。",
+      "difficulty": 2
+    },
+    {
+      "id": "q6",
+      "type": "fill",
+      "stem": "用 for 循环求 1 到 100 的和，结果是 ____",
+      "answer": "5050",
+      "explanation": "sum(range(1,101)) = 5050。",
+      "difficulty": 2
+    },
+    {
+      "id": "q7",
+      "type": "choice",
+      "stem": "调用 input() 返回的值类型是",
+      "options": ["字符串", "整数", "浮点数", "布尔值"],
+      "answer": 0,
+      "explanation": "input() 始终返回字符串，需要数值时须用 int()/float() 转换。",
+      "difficulty": 2
+    },
+    {
+      "id": "q8",
+      "type": "choice",
+      "stem": "定义函数求平方并返回结果，正确的写法是",
+      "options": ["def sq(x): return x*x", "function sq(x) { return x*x }", "def sq(x): print(x*x)", "def sq(x) => x*x"],
+      "answer": 0,
+      "explanation": "Python 用 def 定义函数、return 返回结果。",
+      "difficulty": 2
+    }
+  ],
+  "version": 1
+}
