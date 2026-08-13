@@ -9,7 +9,7 @@
       <canvas
         ref="cv"
         class="starmap-canvas"
-        :class="{ grabbing: isPanning, pointer: hoverKind !== null }"
+        :class="{ grabbing: isPanning || rotating, pointer: hoverKind !== null }"
         @pointerdown="onPointerDown"
         @pointermove="onPointerMove"
         @pointerup="onPointerUp"
@@ -17,6 +17,7 @@
         @pointerleave="onPointerLeave"
         @dblclick="onDblClick"
         @wheel.prevent="onWheel"
+        @contextmenu.prevent
       />
       <div v-if="tip.show" class="starmap-tip" :style="{ left: tip.x + 'px', top: tip.y + 'px' }">
         <b>{{ tip.title }}</b>
@@ -54,7 +55,7 @@
     <p v-if="loading" class="macro-status">加载星图中…</p>
     <p v-else-if="error" class="macro-status error-text">{{ error }} <button class="link-btn" @click="load">重试</button></p>
     <p v-else class="macro-hint">
-      一体大地图：滚轮缩放进入星系 · 单击星系聚焦 · 单击星点看详情 · 双击星点在中心视图打开 · 拖拽平移
+      一体大地图：滚轮缩放 · 拖拽平移 · 右键拖动旋转 · 单击星系聚焦 · 单击星点看详情 · 双击星点在中心视图打开
     </p>
   </div>
 </template>
@@ -88,6 +89,7 @@ const error = ref('');
 const galaxies = ref([]); // [{ subject, count }]
 const showLegend = ref(false);
 const isPanning = ref(false);
+const rotating = ref(false); // 右键旋转中（光标样式）
 const hoverKind = ref(null);
 const tip = ref({ show: false, x: 0, y: 0, title: '', sub: '' });
 
@@ -248,14 +250,26 @@ const pointers = new Map();
 let downInfo = null;
 let moved = false;
 let pinch = null;
+let rotateInfo = null; // 右键旋转：{ x, rot0 }
 
 function onPointerDown(e) {
   cancelAnim();
+  if (e.button === 2) {
+    // 右键：旋转视口
+    rotateInfo = { x: e.offsetX, rot0: renderer.camera.rot };
+    rotating.value = true;
+    return;
+  }
   cv.value.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
   if (pointers.size === 2) {
     const [a, b] = [...pointers.values()];
-    pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y), scale0: renderer.camera.scale };
+    pinch = {
+      d0: Math.hypot(a.x - b.x, a.y - b.y),
+      scale0: renderer.camera.scale,
+      a0: Math.atan2(b.y - a.y, b.x - a.x),
+      rot0: renderer.camera.rot,
+    };
     moved = true;
     return;
   }
@@ -265,6 +279,12 @@ function onPointerDown(e) {
 }
 
 function onPointerMove(e) {
+  if (rotateInfo) {
+    // 右键旋转：水平拖动一圈 ≈ 2π
+    renderer.camera.rot = rotateInfo.rot0 + (e.offsetX - rotateInfo.x) * 0.006;
+    renderer.render();
+    return;
+  }
   const prev = pointers.get(e.pointerId);
   if (prev && pointers.size === 2 && pinch) {
     pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
@@ -274,6 +294,10 @@ function onPointerMove(e) {
       renderer.camera.scale = Math.min(4, Math.max(minScale, pinch.scale0 * (d / pinch.d0)));
       renderer.render();
     }
+    // 双指旋转
+    const ang = Math.atan2(b.y - a.y, b.x - a.x);
+    renderer.camera.rot = pinch.rot0 + (ang - pinch.a0);
+    renderer.render();
     return;
   }
   if (prev) {
@@ -320,6 +344,11 @@ function updateTip(hit, e) {
 }
 
 function onPointerUp(e) {
+  if (rotateInfo) {
+    rotateInfo = null;
+    rotating.value = false;
+    return;
+  }
   const wasPinch = pointers.size > 1;
   pointers.delete(e.pointerId);
   if (pointers.size < 2) pinch = null;
@@ -341,6 +370,8 @@ function onPointerUp(e) {
 }
 
 function onPointerLeave() {
+  rotateInfo = null;
+  rotating.value = false;
   tip.value.show = false;
   hoverKind.value = null;
   if (renderer) {

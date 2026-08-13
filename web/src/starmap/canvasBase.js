@@ -56,7 +56,7 @@ export class CanvasStage {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.camera = { x: 0, y: 0, scale: 1 }; // x/y：屏幕中心对应的世界坐标
+    this.camera = { x: 0, y: 0, scale: 1, rot: 0 }; // x/y：屏幕中心对应的世界坐标；rot：视口旋转角（弧度）
     this.width = 0;
     this.height = 0;
     this.stars = [];
@@ -73,20 +73,42 @@ export class CanvasStage {
 
   // ---- 坐标变换 ----
   toWorld(sx, sy) {
-    const { x, y, scale } = this.camera;
-    return { x: (sx - this.width / 2) / scale + x, y: (sy - this.height / 2) / scale + y };
+    const { x, y, scale, rot = 0 } = this.camera;
+    const dx = sx - this.width / 2;
+    const dy = sy - this.height / 2;
+    const c = Math.cos(-rot);
+    const s = Math.sin(-rot);
+    return { x: (dx * c - dy * s) / scale + x, y: (dx * s + dy * c) / scale + y };
   }
 
   toScreen(wx, wy) {
-    const { x, y, scale } = this.camera;
-    return { x: (wx - x) * scale + this.width / 2, y: (wy - y) * scale + this.height / 2 };
+    const { x, y, scale, rot = 0 } = this.camera;
+    const dx = (wx - x) * scale;
+    const dy = (wy - y) * scale;
+    const c = Math.cos(rot);
+    const s = Math.sin(rot);
+    return { x: dx * c - dy * s + this.width / 2, y: dx * s + dy * c + this.height / 2 };
   }
 
-  // 当前视口的世界坐标范围（视口裁剪用；pad 为世界单位余量）
+  // 当前视口的世界坐标范围（视口裁剪用；pad 为世界单位余量；旋转时取四角轴对齐包围盒）
   visibleWorldRect(pad = 0) {
-    const a = this.toWorld(0, 0);
-    const b = this.toWorld(this.width, this.height);
-    return { x0: a.x - pad, y0: a.y - pad, x1: b.x + pad, y1: b.y + pad };
+    const corners = [
+      this.toWorld(0, 0),
+      this.toWorld(this.width, 0),
+      this.toWorld(this.width, this.height),
+      this.toWorld(0, this.height),
+    ];
+    let x0 = Infinity;
+    let y0 = Infinity;
+    let x1 = -Infinity;
+    let y1 = -Infinity;
+    for (const p of corners) {
+      x0 = Math.min(x0, p.x);
+      y0 = Math.min(y0, p.y);
+      x1 = Math.max(x1, p.x);
+      y1 = Math.max(y1, p.y);
+    }
+    return { x0: x0 - pad, y0: y0 - pad, x1: x1 + pad, y1: y1 + pad };
   }
 
   _makeStars() {
@@ -139,6 +161,7 @@ export class CanvasStage {
     const { ctx, camera, width: w, height: h } = this;
     ctx.save();
     ctx.translate(w / 2, h / 2);
+    if (camera.rot) ctx.rotate(camera.rot); // 视口旋转（默认 0 无影响）
     ctx.scale(camera.scale, camera.scale);
     ctx.translate(-camera.x, -camera.y);
   }

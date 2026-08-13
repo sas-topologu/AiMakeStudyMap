@@ -154,10 +154,12 @@ export class MacroRenderer extends CanvasStage {
     if (!this.data) return null;
     const weights = worldWeights(this.camera.scale);
     const w = this.toWorld(sx, sy);
-    // 星系层（权重过半时星系优先命中）
+    // 星系层（权重过半时星系优先命中；无边界的星点团，命中半径取柔光核心区）
     if (weights.galaxy > 0.5) {
       for (const g of this.data.galaxies) {
-        if (Math.hypot(w.x - g.x, w.y - g.y) <= g.r) return { type: 'galaxy', subject: g.subject };
+        if (Math.hypot(w.x - g.x, w.y - g.y) <= Math.max(28, g.r * 0.55)) {
+          return { type: 'galaxy', subject: g.subject };
+        }
       }
     }
     // 节点档（含过渡带）优先命中节点
@@ -224,24 +226,32 @@ export class MacroRenderer extends CanvasStage {
 
   _drawGalaxies(alpha) {
     const { ctx, camera } = this;
-    const rect = this.visibleWorldRect(160);
+    const rect = this.visibleWorldRect(300);
     const hoverSubject = this.hoverTarget?.type === 'galaxy' ? this.hoverTarget.subject : null;
     for (const g of this.data.galaxies) {
-      if (g.x + g.r < rect.x0 || g.x - g.r > rect.x1 || g.y + g.r < rect.y0 || g.y - g.r > rect.y1) {
-        continue; // 视口裁剪
+      const lp = g.labelPos ?? { x: g.x, y: g.y + g.r };
+      const reach = g.r * 2.6;
+      if (
+        g.x + reach < rect.x0 || g.x - reach > rect.x1 ||
+        g.y + reach < rect.y0 || g.y - reach > rect.y1 ||
+        lp.x < rect.x0 || lp.x > rect.x1 || lp.y < rect.y0 || lp.y > rect.y1
+      ) {
+        continue; // 视口裁剪（含标签位置）
       }
       const hot = g.subject === hoverSubject;
-      const glow = g.glow * (hot ? 1.5 : 1) * alpha;
-      const grad = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, g.r);
-      grad.addColorStop(0, `rgba(214,228,255,${Math.min(0.95, glow + 0.25)})`);
-      grad.addColorStop(0.45, `rgba(122,162,255,${glow})`);
+      // 无边界柔光：融入背景的星云（渐变到 0，不画圆盘轮廓）
+      const glow = g.glow * (hot ? 1.4 : 1) * alpha;
+      const R = g.r * 2.4;
+      const grad = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, R);
+      grad.addColorStop(0, `rgba(122,162,255,${Math.min(0.45, glow * 0.75)})`);
+      grad.addColorStop(0.5, `rgba(122,162,255,${glow * 0.2})`);
       grad.addColorStop(1, 'rgba(122,162,255,0)');
       ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2);
+      ctx.arc(g.x, g.y, R, 0, Math.PI * 2);
       ctx.fill();
 
-      // 星云内部亮点（节点聚合发光，呼吸闪烁）
+      // 星云内部星点（节点聚合发光，呼吸闪烁）
       ctx.fillStyle = '#e8efff';
       const t = performance.now() / 1000;
       for (const s of g.sparkles) {
@@ -253,15 +263,7 @@ export class MacroRenderer extends CanvasStage {
       }
       ctx.globalAlpha = 1;
 
-      if (hot) {
-        ctx.strokeStyle = `rgba(190,215,255,${0.8 * alpha})`;
-        ctx.lineWidth = 1.5 / camera.scale;
-        ctx.beginPath();
-        ctx.arc(g.x, g.y, g.r + 4 / camera.scale, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-
-      // 导航路线覆盖的学科：金色外环提示
+      // 导航路线覆盖的学科：金色光晕提示
       if (this.highlight.subjects.has(g.subject)) {
         ctx.save();
         ctx.strokeStyle = '#ffe27a';
@@ -275,15 +277,16 @@ export class MacroRenderer extends CanvasStage {
         ctx.restore();
       }
 
-      // 学科名 + 节点数（屏幕恒定字号）
-      ctx.fillStyle = `rgba(226,232,255,${0.95 * alpha})`;
-      ctx.font = `600 ${15 / camera.scale}px system-ui, "PingFang SC", "Microsoft YaHei", sans-serif`;
+      // 学科名 + 节点数：择地位（布局时选在学科外围，屏幕恒定字号）
       ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillText(g.subject, g.x, g.y + g.r + 8 / camera.scale);
-      ctx.fillStyle = `rgba(139,149,184,${0.9 * alpha})`;
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = `rgba(226,232,255,${(hot ? 1 : 0.92) * alpha})`;
+      ctx.font = `600 ${15 / camera.scale}px system-ui, "PingFang SC", "Microsoft YaHei", sans-serif`;
+      ctx.fillText(g.subject, lp.x, lp.y);
+      ctx.fillStyle = `rgba(139,149,184,${0.88 * alpha})`;
       ctx.font = `${11 / camera.scale}px system-ui, sans-serif`;
-      ctx.fillText(`${g.count} 节点`, g.x, g.y + g.r + 26 / camera.scale);
+      ctx.textBaseline = 'top';
+      ctx.fillText(`${g.count} 节点`, lp.x, lp.y + 9 / camera.scale);
     }
   }
 

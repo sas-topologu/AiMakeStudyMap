@@ -14,15 +14,17 @@ const PRE = (from, to) => ({ from, to, type: 'prerequisite' }); // from 的前�
 const REL = (from, to) => ({ from, to, type: 'related' });
 
 describe('layoutConstellation', () => {
-  it('按 prerequisite 最长路径分层（链 A→B→C）', () => {
+  it('按 prerequisite 最长路径分层（链 A→B→C），层越深离中心越远（蛛网）', () => {
     // C 的前置是 B，B 的前置是 A → A 第 0 层，B 第 1 层，C 第 2 层
     const pos = layoutConstellation([N('A'), N('B'), N('C')], [PRE('B', 'A'), PRE('C', 'B')]);
     expect(pos.get('A').layer).toBe(0);
     expect(pos.get('B').layer).toBe(1);
     expect(pos.get('C').layer).toBe(2);
-    // 层越高越靠上（y 负方向）
-    expect(pos.get('C').y).toBeLessThan(pos.get('B').y);
-    expect(pos.get('B').y).toBeLessThan(pos.get('A').y);
+    // 蛛网：基础靠近中心，前沿靠外
+    const r = (id) => Math.hypot(pos.get(id).x, pos.get(id).y);
+    expect(r('C')).toBeGreaterThan(r('B'));
+    expect(r('B')).toBeGreaterThan(r('A'));
+    expect(r('A')).toBeCloseTo(0); // 单基础节点在圆心
   });
 
   it('菱形依赖取最长路径：D 的第 2 层', () => {
@@ -48,11 +50,27 @@ describe('layoutConstellation', () => {
     }
   });
 
-  it('同层节点 x 居中均布且不重叠', () => {
+  it('同层基础节点在中心小圆上角度均布', () => {
     const pos = layoutConstellation([N('A'), N('B'), N('C')], []);
-    const xs = [pos.get('A').x, pos.get('B').x, pos.get('C').x].sort((a, b) => a - b);
-    expect(xs[1] - xs[0]).toBeCloseTo(xs[2] - xs[1]); // 等距
-    expect(xs[0] + xs[2]).toBeCloseTo(0); // 居中
+    const rs = ['A', 'B', 'C'].map((id) => Math.hypot(pos.get(id).x, pos.get(id).y));
+    const as = ['A', 'B', 'C']
+      .map((id) => Math.atan2(pos.get(id).y, pos.get(id).x))
+      .sort((a, b) => a - b);
+    expect(rs[0]).toBeCloseTo(rs[1]);
+    expect(rs[1]).toBeCloseTo(rs[2]);
+    expect(rs[0]).toBeGreaterThan(0); // 多基础在小圆上而非圆心
+    expect(as[1] - as[0]).toBeCloseTo(as[2] - as[1], 5); // 角度均布
+  });
+
+  it('子节点角度继承主父扇区（连线短不交叉）', () => {
+    // A 有两个子 B、C（同层），二者应聚在 A 的角度附近
+    const pos = layoutConstellation([N('A'), N('B'), N('C')], [PRE('B', 'A'), PRE('C', 'A')]);
+    const aA = Math.atan2(pos.get('A').y, pos.get('A').x);
+    const aB = Math.atan2(pos.get('B').y, pos.get('B').x);
+    const aC = Math.atan2(pos.get('C').y, pos.get('C').x);
+    const diff = (a) => Math.abs(((a - aA + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+    expect(diff(aB)).toBeLessThan(Math.PI / 2 + 1e-6);
+    expect(diff(aC)).toBeLessThan(Math.PI / 2 + 1e-6);
   });
 
   it('环兜底：不挂死且给出有限坐标', () => {

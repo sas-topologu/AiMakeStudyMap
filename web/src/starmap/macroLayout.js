@@ -51,7 +51,7 @@ export function layoutWorld(subjects, nodes, edges) {
     const localEdges = edges.filter(
       (e) => e.type === 'prerequisite' && ids.has(e.from) && ids.has(e.to),
     );
-    const pos = layoutConstellation(list, localEdges, { hGap: 72, vGap: 92 });
+    const pos = layoutConstellation(list, localEdges, { ringStep: 72 });
     let x0 = Infinity;
     let y0 = Infinity;
     let x1 = -Infinity;
@@ -67,7 +67,7 @@ export function layoutWorld(subjects, nodes, edges) {
     maxDiag = Math.max(maxDiag, Math.hypot(w, h));
     locals.set(subj, { pos, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 });
   }
-  // 星系锚点：椭圆均匀分布，相邻弦距 ≥ 学科对角 + 边距（收紧系数使星空聚拢）
+  // 星系锚点：正 n 边形均布（相邻弦距精确 = chord ≥ 学科对角 + 边距）
   const sorted = [...subjects].sort((a, b) => (a.subject < b.subject ? -1 : 1));
   const n = sorted.length;
   const chord = maxDiag + 140;
@@ -75,11 +75,10 @@ export function layoutWorld(subjects, nodes, edges) {
   if (n <= 1) {
     anchors.set(sorted[0].subject, { x: 0, y: 0 });
   } else {
-    const rx = ((chord * n) / (2 * Math.PI)) * 1.02;
-    const ry = rx * 0.62;
+    const R = chord / (2 * Math.sin(Math.PI / n)); // 正 n 边形外接圆半径：边长 = chord
     sorted.forEach((s, i) => {
       const a = (-90 + (360 * i) / n) * DEG; // 从正上方起顺时针均布
-      anchors.set(s.subject, { x: Math.cos(a) * rx, y: Math.sin(a) * ry });
+      anchors.set(s.subject, { x: Math.cos(a) * R, y: Math.sin(a) * R });
     });
   }
   const galaxies = sorted.map((s) => {
@@ -93,6 +92,28 @@ export function layoutWorld(subjects, nodes, edges) {
       local: locals.get(s.subject) ?? null,
     };
   });
+  // 学科标签择地生成：沿锚点径向向外，放在学科节点群外围（避开节点与邻星系）
+  for (const g of galaxies) {
+    let rMax = 0;
+    if (g.local) {
+      for (const p of g.local.pos.values()) {
+        rMax = Math.max(rMax, Math.hypot(p.x - g.local.cx, p.y - g.local.cy));
+      }
+    }
+    const rBox = rMax || g.r;
+    let dx = g.x;
+    let dy = g.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) {
+      dx = 0;
+      dy = -1;
+    } else {
+      dx /= len;
+      dy /= len;
+    }
+    const d = rBox + 36;
+    g.labelPos = { x: g.x + dx * d, y: g.y + dy * d };
+  }
   // 节点全局坐标：局部坐标平移到星系锚点
   const pos = new Map();
   for (const g of galaxies) {
@@ -104,10 +125,12 @@ export function layoutWorld(subjects, nodes, edges) {
   return { galaxies, pos };
 }
 
-// ---- 星座视图 ----
-// nodes: [{ id, ... }]；edges: [{ from, to, type }]（from 的前置是 to）
-// → Map<id, { x, y, layer }>；layer 0 在底部，向上递增
-export function layoutConstellation(nodes, edges, { hGap = 95, vGap = 115 } = {}) {
+// ---- 星座视图（蛛网布局）----
+// 基础概念靠近中心，前沿逐步向外辐射（仿蛛网）：
+//   无前置的基础节点（layer 0）在中心小圆均布（单基础则在圆心）；
+//   第 L 层节点分布在半径 coreR + L*ringStep 的环上；
+//   子节点角度继承主父节点扇区（连线短、不交叉）；related 不参与定位；确定性。
+export function layoutConstellation(nodes, edges, { ringStep = 75, coreR = 30 } = {}) {
   const ids = new Set(nodes.map((n) => n.id));
   // 前置关系（仅限学科内、prerequisite 边；related 不参与定位）
   const prereqsOf = new Map([...ids].map((id) => [id, []]));
@@ -117,6 +140,8 @@ export function layoutConstellation(nodes, edges, { hGap = 95, vGap = 115 } = {}
     prereqsOf.get(e.from).push(e.to);
     dependentsOf.get(e.to).push(e.from);
   }
+  for (const list of prereqsOf.values()) list.sort();
+  for (const list of dependentsOf.values()) list.sort();
 
   // 最长路径分层（Kahn 拓扑 + 层递推，迭代式避免深链递归爆栈）
   const remaining = new Map([...ids].map((id) => [id, prereqsOf.get(id).length]));
@@ -137,20 +162,48 @@ export function layoutConstellation(nodes, edges, { hGap = 95, vGap = 115 } = {}
   }
   // 防御：导入已保证 DAG；若仍有环，未分层节点兜底为 0
   for (const id of ids) if (!layer.has(id)) layer.set(id, 0);
+  const maxLayer = Math.max(0, ...layer.values());
 
-  // 同层按 id 排序均布（确定性），层越高越靠上（y 负方向）
-  const byLayer = new Map();
+  // 角度分配：layer 0 均布中心小圆；每层子节点继承主父角度扇区
+  const angle = new Map();
+  const layer0 = [...ids].filter((id) => layer.get(id) === 0).sort();
+  layer0.forEach((id, i) => angle.set(id, (Math.PI * 2 * i) / layer0.length));
+
+  const norm = (a) => ((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  for (let L = 1; L <= maxLayer; L += 1) {
+    const cur = [...ids].filter((id) => layer.get(id) === L).sort();
+    const unit = (Math.PI * 2) / cur.length; // 该层每个节点的基础扇区
+    const groups = new Map(); // 主父 id -> [子节点]（主父 = 字典序最小且已有角度的前置）
+    const orphans = [];
+    for (const id of cur) {
+      const parent = prereqsOf.get(id).find((p) => angle.has(p)) ?? null;
+      if (parent) {
+        if (!groups.has(parent)) groups.set(parent, []);
+        groups.get(parent).push(id);
+      } else {
+        orphans.push(id);
+      }
+    }
+    // 组以父角度为中心，子节点在 ±扇区内均布（扇区宽 = 节点数×基础扇区×0.92 留缝）
+    for (const [parent, kids] of groups) {
+      const c = angle.get(parent);
+      const w = kids.length * unit * 0.92;
+      kids.forEach((id, i) => {
+        const a = c + (i - (kids.length - 1) / 2) * (w / kids.length);
+        angle.set(id, norm(a));
+      });
+    }
+    // 无父节点（数据异常兜底）：均分剩余整圆
+    orphans.forEach((id, i) => angle.set(id, norm((Math.PI * 2 * i) / orphans.length + 0.3)));
+  }
+
+  // 极坐标 → 笛卡尔：layer 0 在中心小圆（多基础）或圆心；其余层在 coreR + L*ringStep 环上
+  const pos = new Map();
   for (const id of ids) {
     const l = layer.get(id);
-    if (!byLayer.has(l)) byLayer.set(l, []);
-    byLayer.get(l).push(id);
-  }
-  const pos = new Map();
-  for (const [l, row] of byLayer) {
-    row.sort();
-    row.forEach((id, i) => {
-      pos.set(id, { x: (i - (row.length - 1) / 2) * hGap, y: -l * vGap, layer: l });
-    });
+    const r = l === 0 ? (layer0.length > 1 ? coreR : 0) : coreR + l * ringStep;
+    const a = angle.get(id) ?? 0;
+    pos.set(id, { x: Math.cos(a) * r, y: Math.sin(a) * r, layer: l });
   }
   return pos;
 }
