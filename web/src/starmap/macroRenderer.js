@@ -241,10 +241,10 @@ export class MacroRenderer extends CanvasStage {
       const hot = g.subject === hoverSubject;
       // 无边界柔光：融入背景的星云（渐变到 0，不画圆盘轮廓）
       const glow = g.glow * (hot ? 1.4 : 1) * alpha;
-      const R = g.r * 2.4;
+      const R = g.r * 1.5;
       const grad = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, R);
-      grad.addColorStop(0, `rgba(122,162,255,${Math.min(0.45, glow * 0.75)})`);
-      grad.addColorStop(0.5, `rgba(122,162,255,${glow * 0.2})`);
+      grad.addColorStop(0, `rgba(122,162,255,${Math.min(0.4, glow * 0.7)})`);
+      grad.addColorStop(0.5, `rgba(122,162,255,${glow * 0.18})`);
       grad.addColorStop(1, 'rgba(122,162,255,0)');
       ctx.fillStyle = grad;
       ctx.beginPath();

@@ -116,15 +116,82 @@ describe('layoutWorld', () => {
     for (const n of nodes.slice(0, 6)) {
       const p = pos.get(n.id);
       const d = Math.hypot(p.x - math.x, p.y - math.y);
-      expect(d).toBeLessThan(400); // 学科内相对星系锚点偏移有限
+      expect(d).toBeLessThanOrEqual(math.r); // 节点不超出所属团半径
     }
   });
 
-  it('相邻星系中心距 ≥ 学科对角 + 边距（不重叠）', () => {
+  it('团不相交：中心距 ≥ 半径和 + 间隙（圆堆积不重叠）', () => {
     const { galaxies } = layoutWorld(subjects, nodes, edges);
-    // 两学科：相距应不小于两者半径和
-    const d = Math.hypot(galaxies[0].x - galaxies[1].x, galaxies[0].y - galaxies[1].y);
-    expect(d).toBeGreaterThan(galaxies[0].r + galaxies[1].r + 100);
+    const GAP = 70;
+    for (let i = 0; i < galaxies.length; i += 1) {
+      for (let j = i + 1; j < galaxies.length; j += 1) {
+        const d = Math.hypot(
+          galaxies[i].x - galaxies[j].x,
+          galaxies[i].y - galaxies[j].y,
+        );
+        expect(d).toBeGreaterThanOrEqual(galaxies[i].r + galaxies[j].r + GAP - 1e-6);
+      }
+    }
+  });
+
+  it('贪心贴边：每个后续团与某个已放团恰好相切（紧凑堆积）', () => {
+    const { galaxies } = layoutWorld(subjects, nodes, edges);
+    const GAP = 70;
+    for (let i = 1; i < galaxies.length; i += 1) {
+      let touching = false;
+      for (let j = 0; j < i; j += 1) {
+        const d = Math.hypot(
+          galaxies[i].x - galaxies[j].x,
+          galaxies[i].y - galaxies[j].y,
+        );
+        if (Math.abs(d - (galaxies[i].r + galaxies[j].r + GAP)) < 0.01) touching = true;
+      }
+      expect(touching).toBe(true);
+    }
+  });
+
+  it('自适应：不同规模下布局均不相交且坐标有限', () => {
+    // 模拟未来内容增长：更多学科、更多节点（含单节点学科）
+    const bigSubjects = [
+      { subject: '数学', count: 30 },
+      { subject: '物理', count: 22 },
+      { subject: '计算机', count: 15 },
+      { subject: '化学', count: 6 },
+      { subject: '地理', count: 4 },
+      { subject: '生物', count: 4 },
+      { subject: '历史', count: 1 },
+      { subject: '艺术', count: 1 },
+    ];
+    const bigNodes = [];
+    let seq = 0;
+    for (const s of bigSubjects) {
+      for (let i = 0; i < s.count; i += 1) {
+        bigNodes.push({ id: `n${seq}`, title: `n${seq}`, subject: s.subject });
+        seq += 1;
+      }
+    }
+    const bigEdges = [];
+    // 每个学科一条链，链长随节点数增长（自动拉大团半径）
+    let base = 0;
+    for (const s of bigSubjects) {
+      for (let i = 1; i < s.count; i += 1) {
+        bigEdges.push({ from: `n${base + i}`, to: `n${base + i - 1}`, type: 'prerequisite' });
+      }
+      base += s.count;
+    }
+    const { galaxies, pos } = layoutWorld(bigSubjects, bigNodes, bigEdges);
+    expect(galaxies.length).toBe(8);
+    expect(pos.size).toBe(bigNodes.length);
+    const GAP = 70;
+    for (let i = 0; i < galaxies.length; i += 1) {
+      for (let j = i + 1; j < galaxies.length; j += 1) {
+        const d = Math.hypot(
+          galaxies[i].x - galaxies[j].x,
+          galaxies[i].y - galaxies[j].y,
+        );
+        expect(d).toBeGreaterThanOrEqual(galaxies[i].r + galaxies[j].r + GAP - 1e-6);
+      }
+    }
   });
 
   it('确定性：同数据同结果', () => {

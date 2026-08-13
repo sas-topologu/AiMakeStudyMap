@@ -35,74 +35,66 @@ const galaxyRadius = (count) => 42 + 13 * Math.sqrt(count);
 // ---- 一体大地图：学科星系 + 学科内节点统一世界坐标 ----
 // 所有学科合并为一张连续地图：星系锚点沿椭圆分布（相邻间距 ≥ 学科局部布局对角 +
 // 边距，保证星系内节点不互相重叠）；各学科节点按 DAG 分层后平移到星系锚点。
-// 返回 { galaxies: [{subject,count,x,y,r}], pos: Map<id,{x,y}> }
+// 返回 { galaxies: [{subject,count,x,y,r,labelPos}], pos: Map<id,{x,y}> }
+//
+// 通用生成规则（规模自适应，不依赖任何固定地图尺寸）：
+//   1) 学科内部：蛛网布局（layoutConstellation），学科「团」半径 = 节点分布实际半径
+//   2) 学科团排列：圆堆积——按半径降序从原点贪心堆叠，每团贴着已放团放置、
+//      取离原点最近的可行位；团间距 GAP 与节点连线尺度同量级，学科自然凑在一起
+//   3) 学科标签：沿团中心远离全局质心的方向，放在团外缘
+// 新增节点/新增学科时自动重排，无需调整参数。
 export function layoutWorld(subjects, nodes, edges) {
+  const GAP = 70; // 团间最小间隙（≈蛛网 ringStep，连线与团距同尺度）
+
   const bySubject = new Map();
   for (const n of nodes) {
     const subj = n.subject ?? '未分类';
     if (!bySubject.has(subj)) bySubject.set(subj, []);
     bySubject.get(subj).push(n);
   }
-  // 各学科局部布局 + 包围盒（layoutConstellation 复用，确定性不变；间距收紧使地图更聚拢）
+  // 1) 各学科蛛网局部布局；团半径 = 节点到蛛网中心的最大距离
   const locals = new Map();
-  let maxDiag = 0;
   for (const [subj, list] of bySubject) {
     const ids = new Set(list.map((n) => n.id));
     const localEdges = edges.filter(
       (e) => e.type === 'prerequisite' && ids.has(e.from) && ids.has(e.to),
     );
     const pos = layoutConstellation(list, localEdges, { ringStep: 72 });
-    let x0 = Infinity;
-    let y0 = Infinity;
-    let x1 = -Infinity;
-    let y1 = -Infinity;
-    for (const p of pos.values()) {
-      x0 = Math.min(x0, p.x);
-      y0 = Math.min(y0, p.y);
-      x1 = Math.max(x1, p.x);
-      y1 = Math.max(y1, p.y);
-    }
-    const w = x1 - x0 || 0;
-    const h = y1 - y0 || 0;
-    maxDiag = Math.max(maxDiag, Math.hypot(w, h));
-    locals.set(subj, { pos, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 });
+    let rMax = 0;
+    for (const p of pos.values()) rMax = Math.max(rMax, Math.hypot(p.x, p.y));
+    locals.set(subj, { pos, r: Math.max(40, rMax + 18) });
   }
-  // 星系锚点：正 n 边形均布（相邻弦距精确 = chord ≥ 学科对角 + 边距）
+
+  // 2) 圆堆积：确定性贪心（按学科名排序；贴边 5° 步进扫描，取离原点最近可行位）
   const sorted = [...subjects].sort((a, b) => (a.subject < b.subject ? -1 : 1));
-  const n = sorted.length;
-  const chord = maxDiag + 140;
-  const anchors = new Map();
-  if (n <= 1) {
-    anchors.set(sorted[0].subject, { x: 0, y: 0 });
-  } else {
-    const R = chord / (2 * Math.sin(Math.PI / n)); // 正 n 边形外接圆半径：边长 = chord
-    sorted.forEach((s, i) => {
-      const a = (-90 + (360 * i) / n) * DEG; // 从正上方起顺时针均布
-      anchors.set(s.subject, { x: Math.cos(a) * R, y: Math.sin(a) * R });
-    });
+  const placed = []; // { x, y, r }
+  const centers = new Map();
+  for (const s of sorted) {
+    const r = locals.get(s.subject)?.r ?? 40;
+    const p = packCircle(placed, r, GAP);
+    placed.push({ x: p.x, y: p.y, r });
+    centers.set(s.subject, { x: p.x, y: p.y, r });
   }
+
+  // 3) 学科标签：沿团中心远离全局质心方向、放在团外缘
   const galaxies = sorted.map((s) => {
-    const a = anchors.get(s.subject);
+    const c = centers.get(s.subject);
     return {
       subject: s.subject,
       count: s.count,
-      x: a.x,
-      y: a.y,
-      r: galaxyRadius(s.count),
+      x: c.x,
+      y: c.y,
+      r: c.r,
       local: locals.get(s.subject) ?? null,
     };
   });
-  // 学科标签择地生成：沿锚点径向向外，放在学科节点群外围（避开节点与邻星系）
+  const centroid = {
+    x: placed.reduce((sum, p) => sum + p.x, 0) / Math.max(1, placed.length),
+    y: placed.reduce((sum, p) => sum + p.y, 0) / Math.max(1, placed.length),
+  };
   for (const g of galaxies) {
-    let rMax = 0;
-    if (g.local) {
-      for (const p of g.local.pos.values()) {
-        rMax = Math.max(rMax, Math.hypot(p.x - g.local.cx, p.y - g.local.cy));
-      }
-    }
-    const rBox = rMax || g.r;
-    let dx = g.x;
-    let dy = g.y;
+    let dx = g.x - centroid.x;
+    let dy = g.y - centroid.y;
     const len = Math.hypot(dx, dy);
     if (len < 1) {
       dx = 0;
@@ -111,18 +103,48 @@ export function layoutWorld(subjects, nodes, edges) {
       dx /= len;
       dy /= len;
     }
-    const d = rBox + 36;
+    const d = g.r + 26;
     g.labelPos = { x: g.x + dx * d, y: g.y + dy * d };
   }
-  // 节点全局坐标：局部坐标平移到星系锚点
+
+  // 4) 节点全局坐标：蛛网局部坐标平移到团中心
   const pos = new Map();
   for (const g of galaxies) {
     if (!g.local) continue;
     for (const [id, p] of g.local.pos) {
-      pos.set(id, { x: p.x - g.local.cx + g.x, y: p.y - g.local.cy + g.y });
+      pos.set(id, { x: p.x + g.x, y: p.y + g.y });
     }
   }
   return { galaxies, pos };
+}
+
+// 贪心圆堆积：为半径 r 的圆找「与已放圆不相交且离原点最近」的位置
+// （确定性：按放置顺序枚举已放圆、固定角度步进扫描贴边候选）
+function packCircle(placed, r, gap) {
+  if (placed.length === 0) return { x: 0, y: 0 };
+  const STEPS = 72;
+  const STEP = (Math.PI * 2) / STEPS;
+  let best = null;
+  let bestDist = Infinity;
+  for (const p of placed) {
+    const d = p.r + r + gap;
+    for (let i = 0; i < STEPS; i += 1) {
+      const a = i * STEP;
+      const x = p.x + Math.cos(a) * d;
+      const y = p.y + Math.sin(a) * d;
+      const free = placed.every(
+        (q) => Math.hypot(x - q.x, y - q.y) >= q.r + r + gap - 1e-6,
+      );
+      if (!free) continue;
+      const dist = Math.hypot(x, y);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = { x, y };
+      }
+    }
+  }
+  // 兜底（理论上必找到：贴着任意已放圆的外侧总有一处空隙）
+  return best ?? { x: placed[0].x, y: placed[0].y + placed[0].r + r + gap };
 }
 
 // ---- 星座视图（蛛网布局）----
