@@ -1,0 +1,193 @@
+{
+  "id": "computer.network.basics",
+  "title": "计算机网络基础",
+  "subject": "计算机",
+  "category": "自然科学",
+  "credibility": "verified",
+  "difficulty": 2,
+  "summary": "计算机网络让设备之间交换数据。本卡介绍网络分层模型（TCP/IP）、IP 地址与 DNS、TCP 与 UDP、HTTP 与万维网、以及网络安全的基本概念。",
+  "objectives": [
+    "理解网络分层思想，说出 TCP/IP 四层模型各层的职责",
+    "理解 IP 地址、子网与 DNS 域名解析的作用",
+    "区分 TCP 与 UDP：面向连接可靠 vs 无连接高效",
+    "理解 HTTP 请求-响应模型与常见状态码",
+    "了解加密、HTTPS、防火墙等基本网络安全手段"
+  ],
+  "sections": [
+    {
+      "heading": "网络与分层模型",
+      "tier": "core",
+      "body": "[[计算机网络]]是互联互通的设备集合。为管理复杂性，网络按层组织——每层只处理自己的职责，向上一层提供服务。最常用的是[[TCP/IP 模型]]四层：**链路层**（同一网络内的帧传输，如以太网/Wi-Fi）、**网络层**（跨网络寻址与路由，核心是 [[IP 协议]]）、**传输层**（端到端的数据传输控制，核心是 [[TCP]] 与 [[UDP]]）、**应用层**（面向用户的协议，如 [[HTTP]]、DNS、FTP）。数据发送时逐层封装（加头部），接收时逐层解封。"
+    },
+    {
+      "heading": "IP 地址与 DNS",
+      "tier": "core",
+      "body": "[[IP 地址]]是设备在网络中的逻辑地址。IPv4 为 32 位，如 192.168.1.10；IPv6 为 128 位以缓解地址耗尽。同一子网内的设备用地址直接通信，跨网由[[路由器]]转发。人类记不住数字地址，故用[[DNS]]（域名系统）把「www.example.com」这样的[[域名]]解析为 IP 地址——访问网站的第一步通常是向 DNS 服务器查询。"
+    },
+    {
+      "heading": "TCP 与 UDP",
+      "tier": "core",
+      "body": "传输层提供两种服务。[[TCP]]是面向连接、可靠、有序的传输协议：通过**三次握手**建立连接、确认与重传保证不丢包、按序到达，适合文件传输、网页等要求准确的场景，代价是开销大。[[UDP]]是无连接、不可靠但低延迟的协议，不握手、不重传，适合实时音视频、在线游戏等可以容忍少量丢失的场景。选择依据是业务对「可靠 vs 实时」的权衡。"
+    },
+    {
+      "heading": "HTTP 与万维网",
+      "tier": "core",
+      "body": "[[HTTP]]是应用层协议，采用**请求-响应**模型：浏览器（客户端）发请求，服务器返回响应。请求含方法（GET 取资源、POST 提交数据）、URL 与头部；响应含[[状态码]]（200 成功、404 不存在、500 服务器错误）与正文。[[HTTPS]]在 HTTP 之上加 [[TLS]] 加密，保证传输的机密性与完整性，是现代网站标配。[[Cookie]] 与 Session 用于维持登录状态（HTTP 本身无状态）。"
+    },
+    {
+      "heading": "网络安全基础",
+      "tier": "core",
+      "body": "网络安全目标是保密性、完整性与可用性。常用手段：**加密**（对称加密如 AES 速度快、非对称加密如 RSA 用于密钥交换与数字签名）、[[防火墙]]（按规则过滤进出流量）、[[VPN]]（加密隧道）。常见威胁有[[中间人攻击]]（窃听/篡改，HTTPS 可防）、[[DDoS]]（海量流量压垮服务）、网络钓鱼。密码学与安全实践是网络应用的底线。"
+    },
+    {
+      "heading": "小结",
+      "tier": "core",
+      "body": "①分层化解复杂性：链路→网络→传输→应用；②IP 定地址、DNS 转名字、路由器跨网转发；③TCP 可靠但慢、UDP 快但可能丢包；④HTTP 请求-响应 + 状态码，HTTPS 加 TLS 加密；⑤安全靠加密、防火墙与良好实践。"
+    }
+  ],
+  "media": [],
+  "examples": [
+    {
+      "id": "ex1",
+      "title": "选择传输协议",
+      "problem": "在线视频直播与银行转账分别适合用 TCP 还是 UDP？为什么？",
+      "steps": [
+        "视频直播：追求低延迟、可容忍偶尔丢帧 → UDP",
+        "银行转账：必须保证不丢不重、准确可靠 → TCP",
+        "权衡点：实时性 vs 可靠性"
+      ],
+      "answer": "直播用 UDP（低延迟），转账用 TCP（可靠）"
+    },
+    {
+      "id": "ex2",
+      "title": "识别状态码",
+      "problem": "访问一个不存在的网页返回 404，服务器内部出错返回 500，分别表示什么？",
+      "steps": [
+        "404 Not Found：请求的资源不存在",
+        "500 Internal Server Error：服务器处理出错",
+        "200 OK 表示成功"
+      ],
+      "answer": "404=资源不存在；500=服务器内部错误"
+    },
+    {
+      "id": "ex3",
+      "title": "解析访问过程",
+      "problem": "在浏览器输入 www.example.com 并回车，简述前几步网络动作。",
+      "steps": [
+        "浏览器向 DNS 查询 www.example.com 的 IP 地址",
+        "得到 IP 后，与目标服务器建立 TCP 连接（三次握手）",
+        "通过 HTTP/HTTPS 发送 GET 请求，服务器返回网页内容"
+      ],
+      "answer": "DNS 解析 → TCP 连接（三次握手）→ HTTP 请求-响应"
+    }
+  ],
+  "pitfalls": [
+    "把 IP 地址与域名混为一谈：域名是给人类用的名字，DNS 解析为 IP",
+    "认为 TCP 总比 UDP 好：实时场景 TCP 的确认重传反而造成卡顿，UDP 更合适",
+    "把 404 当服务器故障：404 是「资源不存在」，500 才是服务器错误",
+    "忽略 HTTPS：明文 HTTP 传输内容可被中间人窃听篡改"
+  ],
+  "emblems": [
+    { "type": "formula", "content": "TCP/IP", "caption": "网络协议族" },
+    { "type": "formula", "content": "GET→200", "caption": "HTTP 请求" },
+    { "type": "formula", "content": "🔒TLS", "caption": "加密传输" }
+  ],
+  "terms": {
+    "计算机网络": "通过传输介质互联、能相互通信与共享资源的设备集合。",
+    "TCP/IP 模型": "网络分层模型：链路层、网络层、传输层、应用层四层。",
+    "IP 协议": "网络层协议，负责跨网络寻址与路由，核心是 IP 地址。",
+    "TCP": "传输控制协议，面向连接、可靠、有序的传输协议。",
+    "UDP": "用户数据报协议，无连接、不可靠但低延迟的传输协议。",
+    "HTTP": "超文本传输协议，应用层请求-响应协议，万维网的基础。",
+    "IP 地址": "设备在网络中的逻辑地址；IPv4 32 位、IPv6 128 位。",
+    "路由器": "连接不同网络、根据地址转发数据包的设备。",
+    "DNS": "域名系统，把域名解析为 IP 地址的分布式服务。",
+    "域名": "如 www.example.com，人类易记的网络主机名字。",
+    "状态码": "HTTP 响应中表示结果的三位数字，如 200/404/500。",
+    "HTTPS": "在 HTTP 上叠加 TLS 加密的安全版本。",
+    "TLS": "传输层安全协议，为通信提供加密与完整性。",
+    "Cookie": "服务器保存在客户端的小段数据，用于维持状态（如登录态）。",
+    "防火墙": "按规则过滤进出网络流量、阻挡非法访问的机制。",
+    "VPN": "虚拟专用网络，通过加密隧道安全访问内网。",
+    "中间人攻击": "攻击者在通信双方之间窃听或篡改数据，HTTPS 可抵御。",
+    "DDoS": "分布式拒绝服务，用海量流量耗尽目标资源使其不可用。"
+  },
+  "relations": {
+    "prerequisites": ["computer.architecture.basics"],
+    "related": ["computer.os.basics"]
+  },
+  "questionBank": [
+    {
+      "id": "q1",
+      "type": "choice",
+      "stem": "TCP/IP 模型中负责跨网络寻址与路由的是",
+      "options": ["网络层", "链路层", "应用层", "传输层"],
+      "answer": 0,
+      "explanation": "网络层（IP 协议）负责跨网寻址路由；传输层管端到端传输。",
+      "difficulty": 1
+    },
+    {
+      "id": "q2",
+      "type": "choice",
+      "stem": "把域名解析为 IP 地址的服务是",
+      "options": ["DNS", "DHCP", "FTP", "SMTP"],
+      "answer": 0,
+      "explanation": "DNS 域名系统把域名解析为 IP。",
+      "difficulty": 1
+    },
+    {
+      "id": "q3",
+      "type": "choice",
+      "stem": "在线视频直播通常使用 UDP 而非 TCP，原因是",
+      "options": ["低延迟、可容忍少量丢包", "UDP 更可靠", "UDP 会重传保证完整", "TCP 无法传输视频"],
+      "answer": 0,
+      "explanation": "直播追求实时，UDP 不重传、低延迟；TCP 的可靠性会带来卡顿。",
+      "difficulty": 2
+    },
+    {
+      "id": "q4",
+      "type": "choice",
+      "stem": "HTTP 状态码 404 表示",
+      "options": ["资源不存在", "服务器内部错误", "请求成功", "未授权"],
+      "answer": 0,
+      "explanation": "404=Not Found 资源不存在；500 才是服务器错误。",
+      "difficulty": 1
+    },
+    {
+      "id": "q5",
+      "type": "fill",
+      "stem": "HTTPS 在 HTTP 之上叠加了 ____ 协议实现加密",
+      "answer": "TLS",
+      "explanation": "HTTPS = HTTP + TLS 加密。",
+      "difficulty": 2
+    },
+    {
+      "id": "q6",
+      "type": "choice",
+      "stem": "TCP 建立连接前需要",
+      "options": ["三次握手", "两次挥手", "一次广播", "不需要握手"],
+      "answer": 0,
+      "explanation": "TCP 通过三次握手建立可靠连接。",
+      "difficulty": 2
+    },
+    {
+      "id": "q7",
+      "type": "choice",
+      "stem": "攻击者在双方之间窃听篡改数据，属于",
+      "options": ["中间人攻击", "DDoS", "钓鱼", "跨站脚本"],
+      "answer": 0,
+      "explanation": "中间人攻击窃听/篡改，HTTPS 加密可抵御。",
+      "difficulty": 2
+    },
+    {
+      "id": "q8",
+      "type": "choice",
+      "stem": "浏览器发起的「获取资源」HTTP 方法是",
+      "options": ["GET", "POST", "PUT", "DELETE"],
+      "answer": 0,
+      "explanation": "GET 用于获取资源，POST 用于提交数据。",
+      "difficulty": 1
+    }
+  ],
+  "version": 1
+}

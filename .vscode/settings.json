@@ -11,6 +11,10 @@
         "/^git init -b main; git config user\\.name \"starmap-dev\"; git config user\\.email \"dev@starmap\\.local\"; git add -A; git commit -m \"chore: 项目初始化提交（知识星图全量代码）\" 2>&1 \\| Select-Object -Last 6$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^node content/tools/import\\.js --dir content/staging --check --with-db server/data/starmap\\.db 2>&1 \\| Select-Object -Last 8$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }
