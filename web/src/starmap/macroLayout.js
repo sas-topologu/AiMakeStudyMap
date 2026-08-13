@@ -43,7 +43,7 @@ export function layoutWorld(subjects, nodes, edges) {
     if (!bySubject.has(subj)) bySubject.set(subj, []);
     bySubject.get(subj).push(n);
   }
-  // 各学科局部布局 + 包围盒（layoutConstellation 复用，确定性不变）
+  // 各学科局部布局 + 包围盒（layoutConstellation 复用，确定性不变；间距收紧使地图更聚拢）
   const locals = new Map();
   let maxDiag = 0;
   for (const [subj, list] of bySubject) {
@@ -51,7 +51,7 @@ export function layoutWorld(subjects, nodes, edges) {
     const localEdges = edges.filter(
       (e) => e.type === 'prerequisite' && ids.has(e.from) && ids.has(e.to),
     );
-    const pos = layoutConstellation(list, localEdges);
+    const pos = layoutConstellation(list, localEdges, { hGap: 72, vGap: 92 });
     let x0 = Infinity;
     let y0 = Infinity;
     let x1 = -Infinity;
@@ -67,15 +67,15 @@ export function layoutWorld(subjects, nodes, edges) {
     maxDiag = Math.max(maxDiag, Math.hypot(w, h));
     locals.set(subj, { pos, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 });
   }
-  // 星系锚点：椭圆均匀分布，相邻弦距 ≥ 学科对角 + 边距
+  // 星系锚点：椭圆均匀分布，相邻弦距 ≥ 学科对角 + 边距（收紧系数使星空聚拢）
   const sorted = [...subjects].sort((a, b) => (a.subject < b.subject ? -1 : 1));
   const n = sorted.length;
-  const chord = maxDiag + 260;
+  const chord = maxDiag + 140;
   const anchors = new Map();
   if (n <= 1) {
     anchors.set(sorted[0].subject, { x: 0, y: 0 });
   } else {
-    const rx = ((chord * n) / (2 * Math.PI)) * 1.6;
+    const rx = ((chord * n) / (2 * Math.PI)) * 1.02;
     const ry = rx * 0.62;
     sorted.forEach((s, i) => {
       const a = (-90 + (360 * i) / n) * DEG; // 从正上方起顺时针均布

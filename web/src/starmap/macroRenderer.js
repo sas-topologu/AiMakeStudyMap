@@ -32,6 +32,19 @@ const fadeIn = (scale, threshold) =>
 
 const RELATED_MAX_NODE = 3; // 节点档：每节点最多显示的相关线条数（仿中心视图折叠，无徽标）
 
+// 星系对之间跨学科联系：统计跨学科边数（key: subjA|subjB 字典序）
+function crossSubjectPairs(edges, nodesById) {
+  const pairs = new Map();
+  for (const e of edges) {
+    const sa = nodesById[e.from]?.subject ?? '';
+    const sb = nodesById[e.to]?.subject ?? '';
+    if (!sa || !sb || sa === sb) continue;
+    const key = sa < sb ? `${sa}|${sb}` : `${sb}|${sa}`;
+    pairs.set(key, (pairs.get(key) ?? 0) + 1);
+  }
+  return pairs;
+}
+
 // 相关线截断：节点 related 边超阈值时按另一端 id 排序保留前 N 条，其余隐藏
 function collapseRelated(edges) {
   const relatedByNode = new Map();
@@ -112,6 +125,7 @@ export class MacroRenderer extends CanvasStage {
       edges: edgesMeta,
       pos,
       visibleRelated: collapseRelated(edgesMeta), // 相关线截断（每节点最多 RELATED_MAX_NODE 条）
+      crossPairs: crossSubjectPairs(edgesMeta, nodesById), // 星系对之间跨学科联系（星空连成一片）
     };
     this.hoverTarget = null;
     this.frameClusters = [];
@@ -177,10 +191,33 @@ export class MacroRenderer extends CanvasStage {
     this.beginWorld();
     if (this.data) {
       const w = worldWeights(this.camera.scale);
+      this._drawCrossLinks(w.galaxy + w.cluster); // 跨学科联系线随星系/星团层淡入淡出
       if (w.galaxy > 0.02) this._drawGalaxies(w.galaxy);
       if (w.cluster > 0.02) this._drawClusters(w.cluster);
       if (w.mid > 0.02) this._drawMid(w.mid);
       if (w.node > 0.02) this._drawNear(w.node);
+    }
+    ctx.restore();
+  }
+
+  // 星系间跨学科联系线：知识互有关联，星空连成一片（亮度/粗细∝跨学科边数）
+  _drawCrossLinks(alpha) {
+    const { ctx, camera } = this;
+    if (!this.data?.crossPairs?.size || alpha <= 0.02) return;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(158,176,228,0.55)';
+    ctx.setLineDash([6 / camera.scale, 7 / camera.scale]);
+    for (const [key, count] of this.data.crossPairs) {
+      const [sa, sb] = key.split('|');
+      const ga = this.data.galaxies.find((g) => g.subject === sa);
+      const gb = this.data.galaxies.find((g) => g.subject === sb);
+      if (!ga || !gb) continue;
+      ctx.globalAlpha = Math.min(0.5, 0.1 + count * 0.06) * alpha;
+      ctx.lineWidth = (0.8 + Math.min(1.1, count * 0.18)) / camera.scale;
+      ctx.beginPath();
+      ctx.moveTo(ga.x, ga.y);
+      ctx.lineTo(gb.x, gb.y);
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -404,7 +441,7 @@ export class MacroRenderer extends CanvasStage {
         width = 1;
         dash = [4 / camera.scale, 4 / camera.scale];
       } else if (e.cross) {
-        baseAlpha = 0.16; // 跨学科前置：极淡长虚线
+        baseAlpha = 0.25; // 跨学科边：淡虚线（学科间联系提示）
         width = 1;
         dash = [3 / camera.scale, 6 / camera.scale];
       } else {
