@@ -4,8 +4,22 @@
 // 相机、星空背景、星点绘制等通用能力在 canvasBase.js（宏观视图共用）。
 import { CanvasStage, drawSparkleStar } from './canvasBase.js';
 
-const RELATED_VISIBLE = 5; // 折叠时可见的相关线条数
-const RELATED_MAX = 6; // 超过即折叠
+// 连线风格：legacy 原版全亮 / skilltree 按学习状态分档（技能树）/ depth 按环带深度衰减 / trunk 只画主干
+// UI 切换入口在 HomeView「连线风格」面板，模式在 renderer 内保存，setData 不清除
+export const EDGE_MODES = [
+  { key: 'legacy', label: '原版' },
+  { key: 'skilltree', label: '技能树' },
+  { key: 'depth', label: '深度' },
+  { key: 'trunk', label: '主干' },
+];
+
+// 相关线折叠参数（每节点相关线条数超过 max 时只画 visible 条，其余折成「+N」）
+const COLLAPSE_CFG = {
+  legacy: { max: 6, visible: 5 },
+  skilltree: { max: 4, visible: 3 },
+  depth: { max: 6, visible: 4 },
+  trunk: { max: 0, visible: 0 },
+};
 
 const EDGE_STYLE = {
   prerequisite: { color: 'rgba(96,165,250,0.5)', width: 1.2, dash: [] },
@@ -21,6 +35,7 @@ export class StarMapRenderer extends CanvasStage {
     this.centerId = null;
     this.hoverId = null;
     this.expandedRelated = new Set();
+    this.edgeMode = 'skilltree'; // 连线风格（见 EDGE_MODES）
     this.badges = []; // 本帧绘制的「+N」标记（命中检测用）
     // 叠加层：导航路线（金色发光）与热门路径（青色），跨 setData 保持
     this.highlight = { nodes: new Set(), edges: new Set() };
@@ -69,6 +84,7 @@ export class StarMapRenderer extends CanvasStage {
 
   // 相关线折叠：返回 { visibleEdges, hiddenCount: Map<nodeId, number> }
   _collapseRelated(edges) {
+    const cfg = COLLAPSE_CFG[this.edgeMode] ?? COLLAPSE_CFG.legacy;
     const relatedByNode = new Map();
     for (const e of edges) {
       if (e.kind !== 'related') continue;
@@ -80,17 +96,24 @@ export class StarMapRenderer extends CanvasStage {
     const hidden = new Set();
     const hiddenCount = new Map();
     for (const [id, list] of relatedByNode) {
-      if (list.length > RELATED_MAX && !this.expandedRelated.has(id)) {
+      if (list.length > cfg.max && !this.expandedRelated.has(id)) {
         const sorted = [...list].sort((a, b) => {
           const oa = a.from === id ? a.to : a.from;
           const ob = b.from === id ? b.to : b.from;
           return oa < ob ? -1 : 1;
         });
-        for (const e of sorted.slice(RELATED_VISIBLE)) hidden.add(e);
-        hiddenCount.set(id, list.length - RELATED_VISIBLE);
+        for (const e of sorted.slice(cfg.visible)) hidden.add(e);
+        hiddenCount.set(id, list.length - cfg.visible);
       }
     }
     return { visibleEdges: edges.filter((e) => !hidden.has(e)), hiddenCount };
+  }
+
+  // 切换连线风格（校验 key，切换时重置相关线展开状态）
+  setEdgeMode(mode) {
+    if (!EDGE_MODES.some((m) => m.key === mode)) return;
+    this.edgeMode = mode;
+    this.expandedRelated.clear();
   }
 
   toggleRelated(id) {
@@ -247,6 +270,49 @@ export class StarMapRenderer extends CanvasStage {
     ctx.restore();
   }
 
+  // 按当前连线风格计算边的透明度/线宽/是否呼吸脉冲
+  _styleForEdge(e, st, hot) {
+    if (this.edgeMode === 'legacy') {
+      return { alpha: hot ? 1 : 0.9, width: st.width, pulse: false };
+    }
+    if (this.edgeMode === 'depth') {
+      const d = Math.max(
+        this.layout.depth.get(e.from) ?? 0,
+        this.layout.depth.get(e.to) ?? 0,
+      );
+      let alpha = d <= 0 ? 0.95 : d === 1 ? 0.8 : d === 2 ? 0.45 : 0.24;
+      if (e.kind === 'related') alpha *= 0.6;
+      if (this.hoverId) alpha = hot ? 1 : alpha * 0.3;
+      return { alpha, width: st.width * (d <= 1 ? 1 : 0.85), pulse: false };
+    }
+    if (this.edgeMode === 'trunk') {
+      let alpha = 0.85;
+      if (this.hoverId) alpha = hot ? 1 : alpha * 0.25;
+      return { alpha, width: st.width, pulse: false };
+    }
+    // skilltree：按两端节点学习状态分档（dim 未解锁 / open 可解锁 / passed 已通关 / lit 点亮）
+    const stateOf = (id) => this.nodesById[id]?.state ?? 'dim';
+    const s1 = stateOf(e.from);
+    const s2 = stateOf(e.to);
+    const bright = (s) => s === 'lit' || s === 'passed';
+    const b1 = bright(s1);
+    const b2 = bright(s2);
+    let alpha;
+    if (b1 && b2) alpha = 0.85; // 已点亮的树枝
+    else if (b1 || b2) {
+      const other = b1 ? s2 : s1;
+      alpha = other === 'open' ? 0.55 : other === 'dim' ? 0.2 : 0.6;
+    } else if (s1 === 'open' || s2 === 'open') alpha = 0.4; // 可解锁域
+    else alpha = 0.1; // 未探索迷雾
+    if (e.kind === 'related') alpha *= 0.6;
+    // 与中心直连的边保持焦点（本卡「来路」清晰）
+    if (e.from === this.centerId || e.to === this.centerId) alpha = Math.min(1, alpha * 1.3);
+    // 可解锁边呼吸脉冲：一端已学（lit/passed）一端可点（open）；hover 聚焦时暂停呼吸
+    const pulse = !this.hoverId && (b1 || b2) && (b1 ? s2 : s1) === 'open';
+    if (this.hoverId) alpha = hot ? 1 : alpha * 0.25;
+    return { alpha, width: st.width, pulse };
+  }
+
   _drawEdge(e) {
     const { ctx } = this;
     const a = this.posOf(e.from);
@@ -254,11 +320,14 @@ export class StarMapRenderer extends CanvasStage {
     if (!a || !b) return;
     const st = EDGE_STYLE[e.kind] ?? EDGE_STYLE.related;
     const hot = this.hoverId && (e.from === this.hoverId || e.to === this.hoverId);
+    const s = this._styleForEdge(e, st, hot);
+    let alpha = s.alpha;
+    if (s.pulse) alpha += 0.12 * Math.sin((performance.now() / 1000) * 2.2);
     ctx.save();
     ctx.strokeStyle = st.color;
     // 动画淡入淡出：边透明度跟随两端点较小者
-    ctx.globalAlpha = (hot ? 1 : 0.9) * Math.min(this._alphaOf(e.from), this._alphaOf(e.to));
-    ctx.lineWidth = (hot ? st.width + 0.8 : st.width) / Math.sqrt(this.camera.scale);
+    ctx.globalAlpha = alpha * Math.min(this._alphaOf(e.from), this._alphaOf(e.to));
+    ctx.lineWidth = (s.width + (hot ? 0.8 : 0)) / Math.sqrt(this.camera.scale);
     ctx.setLineDash(st.dash);
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);

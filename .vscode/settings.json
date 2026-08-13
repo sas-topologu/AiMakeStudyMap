@@ -27,6 +27,10 @@
         "/^node content/tools/import\\.js --dir content/staging --check --with-db server/data/starmap\\.db 2>&1 \\| Select-Object -Last 3$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^node -e \"const Database=require\\('better-sqlite3'\\);const db=new Database\\('server/data/starmap\\.db',\\{readonly:true\\}\\);console\\.log\\(db\\.prepare\\('PRAGMA table_info\\(user_node_state\\)'\\)\\.all\\(\\)\\);console\\.log\\(db\\.prepare\\('SELECT \\* FROM user_node_state WHERE user_id=41 LIMIT 8'\\)\\.all\\(\\)\\);\"$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

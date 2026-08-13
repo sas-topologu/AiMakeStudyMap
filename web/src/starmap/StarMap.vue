@@ -41,6 +41,8 @@ const props = defineProps({
   highlight: { type: Object, default: () => ({ nodes: [], edges: [] }) },
   // 热门路径（青色）：[{ from, to, count }]
   hotEdges: { type: Array, default: () => [] },
+  // 连线风格：legacy / skilltree / depth / trunk（见 renderer.js EDGE_MODES）
+  edgeMode: { type: String, default: 'skilltree' },
 });
 const emit = defineEmits(['recenter', 'open']);
 
@@ -299,6 +301,40 @@ function psTick(now) {
 function onVisibility() {
   psLast = performance.now(); // 恢复时不计隐藏时长
   syncPsLoop();
+  pulseLast = performance.now();
+  syncPulseLoop();
+}
+
+// ---- 技能树呼吸脉冲渲染循环（仅 skilltree 模式，~20fps 节流）----
+let pulseRaf = null;
+let pulseLast = 0;
+
+function pulseShouldRun() {
+  return props.edgeMode === 'skilltree' && !fx.reducedMotion.value && !document.hidden;
+}
+
+function syncPulseLoop() {
+  if (pulseShouldRun() && !pulseRaf) {
+    pulseLast = performance.now();
+    pulseRaf = requestAnimationFrame(pulseTick);
+  } else if (!pulseShouldRun() && pulseRaf) {
+    cancelAnimationFrame(pulseRaf);
+    pulseRaf = null;
+    if (renderer) renderer.render(); // 停循环时补一帧回到静止态
+  }
+}
+
+function pulseTick(now) {
+  pulseRaf = null;
+  if (!pulseShouldRun()) {
+    if (renderer) renderer.render();
+    return;
+  }
+  if (now - pulseLast >= 50) {
+    pulseLast = now;
+    renderer.render();
+  }
+  pulseRaf = requestAnimationFrame(pulseTick);
 }
 
 // ---- 指针交互 ----
@@ -425,11 +461,13 @@ function onWheel(e) {
 
 onMounted(() => {
   renderer = new StarMapRenderer(cv.value);
+  renderer.setEdgeMode(props.edgeMode);
   ro = new ResizeObserver(resize);
   ro.observe(wrap.value);
   resize();
   loadEmblems();
   document.addEventListener('visibilitychange', onVisibility);
+  syncPulseLoop();
 });
 
 onBeforeUnmount(() => {
@@ -438,6 +476,8 @@ onBeforeUnmount(() => {
   stopTransition({ commit: false });
   if (psRaf) cancelAnimationFrame(psRaf);
   psRaf = null;
+  if (pulseRaf) cancelAnimationFrame(pulseRaf);
+  pulseRaf = null;
   document.removeEventListener('visibilitychange', onVisibility);
 });
 
@@ -454,6 +494,17 @@ watch(() => props.centerId, loadEmblems);
 watch(
   () => fx.particleSpeedEffective.value,
   () => syncPsLoop(),
+);
+
+// 连线风格切换：更新渲染器并同步呼吸脉冲循环
+watch(
+  () => props.edgeMode,
+  (m) => {
+    if (!renderer) return;
+    renderer.setEdgeMode(m);
+    renderer.render();
+    syncPulseLoop();
+  },
 );
 
 // 导航/热门叠加层：跨中心切换保持（renderer 内独立于 setData 存储）
