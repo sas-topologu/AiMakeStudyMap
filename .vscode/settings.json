@@ -19,6 +19,10 @@
         "/^git add -A; git commit -m \"feat\\(content\\): 批次3 内容增长——NLP/大模型/氧化还原/酸碱盐/平衡/细胞（45节点/338题）\" 2>&1 \\| Select-Object -Last 3$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^node content/tools/import\\.js --dir content/staging --check --with-db server/data/starmap\\.db 2>&1 \\| Select-Object -Last 6$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }
