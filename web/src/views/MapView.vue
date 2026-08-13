@@ -1,7 +1,7 @@
-// 宏观视图（大地图）：宇宙视图（学科星系）⇄ 星座视图（学科内 LOD 三档）
+// 宏观视图（一体大地图）：所有学科合并为一张连续世界地图，模仿游戏大地图的连续缩放
 // 交互（电子地图逻辑）：拖拽平移、滚轮/双指缩放；
-//   宇宙视图单击星系 → 平滑进入星座视图；星座视图双击空白 / 缩小过阈值 → 退回宇宙视图
-//   节点档单击节点 → 详情页；双击节点 → 在中心视图打开；星团档单击星团 → 向该处放大
+//   全景：学科星系星云；放大：星团聚合 → 离散节点+主干连线（跨学科边淡化为虚线）
+//   单击星系 → 平滑聚焦该学科；单击节点 → 详情页；双击节点 → 在中心视图打开
 // 数据：每次进入本页重新拉取 graph/all（含登录用户 state），保证闯关返回后亮度更新
 <template>
   <div class="map-page2">
@@ -24,21 +24,16 @@
       </div>
     </div>
 
-    <!-- 顶部工具条：面包屑 + 返回 + 学科切换 + 图例 -->
+    <!-- 顶部工具条：全景 + 聚焦学科 + 图例 -->
     <div class="macro-toolbar panel">
-      <button class="crumb" :disabled="mode === 'universe'" @click="exitToUniverse()">🌌 宇宙</button>
-      <template v-if="mode === 'constellation'">
-        <span class="crumb-sep">/</span>
-        <span class="crumb-current">{{ currentSubject }}</span>
-      </template>
       <span class="toolbar-spacer" />
-      <button v-if="mode === 'constellation'" class="tool-btn" @click="exitToUniverse()">返回宇宙视图</button>
+      <button class="tool-btn" @click="fitWholeMap(true)">🌌 全景</button>
       <select
         class="tool-btn subject-select"
-        :value="mode === 'constellation' ? currentSubject : ''"
-        @change="(e) => enterGalaxy(e.target.value)"
+        value=""
+        @change="(e) => focusSubject(e.target.value)"
       >
-        <option value="" disabled>切换学科</option>
+        <option value="" disabled>聚焦学科</option>
         <option v-for="g in galaxies" :key="g.subject" :value="g.subject">
           {{ g.subject }}（{{ g.count }}）
         </option>
@@ -51,16 +46,16 @@
     <div v-if="showLegend" class="panel macro-legend">
       <div class="legend-row"><i class="dot dim" />暗淡 · <i class="dot open" />开放 · <i class="dot passed" />通关 · <i class="dot lit" />点亮</div>
       <div class="legend-row"><i class="ring green" />验证通过　<i class="ring yellow" />存在争议</div>
-      <div class="legend-row"><i class="line" style="background: #6ea8ff" />主干路径（前置链）　<i class="line dashed" style="border-color: rgba(196,141,255,0.8)" />相关</div>
-      <div class="legend-row">星团数字 = 聚合节点数；放大解体为离散节点</div>
+      <div class="legend-row"><i class="line" style="background: #6ea8ff" />主干路径（同学科）　<i class="line dashed" style="border-color: rgba(196,141,255,0.8)" />相关</div>
+      <div class="legend-row"><i class="line dashed" style="border-color: rgba(110,168,255,0.45)" />跨学科联系（放大后可见）</div>
+      <div class="legend-row">滚轮连续缩放：全景星云 → 星团 → 节点网络；单击星系快速聚焦</div>
     </div>
 
     <p v-if="loading" class="macro-status">加载星图中…</p>
     <p v-else-if="error" class="macro-status error-text">{{ error }} <button class="link-btn" @click="load">重试</button></p>
-    <p v-else-if="mode === 'constellation'" class="macro-hint">
-      单击星点看详情 · 双击在中心视图打开 · 双击空白返回宇宙 · 滚轮缩放切换星团/节点
+    <p v-else class="macro-hint">
+      一体大地图：滚轮缩放进入星系 · 单击星系聚焦 · 单击星点看详情 · 双击星点在中心视图打开 · 拖拽平移
     </p>
-    <p v-else class="macro-hint">单击星系进入星座视图 · 拖拽平移 · 滚轮缩放</p>
   </div>
 </template>
 
@@ -72,8 +67,8 @@ import { useStarmapStore } from '../stores/starmap.js';
 import { useUiStore } from '../stores/ui.js';
 import { useNavStore } from '../stores/navigation.js';
 import { useFxSettings } from '../composables/useFxSettings.js';
-import { MacroRenderer, LOD, lodWeights } from '../starmap/macroRenderer.js';
-import { layoutUniverse, layoutConstellation, makeSyntheticGraph } from '../starmap/macroLayout.js';
+import { MacroRenderer, LOD, worldWeights } from '../starmap/macroRenderer.js';
+import { layoutWorld, makeSyntheticGraph } from '../starmap/macroLayout.js';
 
 const STATE_LABEL = { dim: '暗淡', open: '开放', passed: '通关', lit: '点亮' };
 
@@ -90,8 +85,6 @@ let ro = null;
 
 const loading = ref(true);
 const error = ref('');
-const mode = ref('universe');
-const currentSubject = ref('');
 const galaxies = ref([]); // [{ subject, count }]
 const showLegend = ref(false);
 const isPanning = ref(false);
@@ -100,31 +93,21 @@ const tip = ref({ show: false, x: 0, y: 0, title: '', sub: '' });
 
 let allNodes = [];
 let allEdges = [];
-let universeCam = null; // 进入星座前的宇宙相机，返回时复原
-let exitScale = LOD.EXIT; // 进入星座时按 fitScale 收紧
+let minScale = 0.02; // 全景 fit 后允许的最小缩放（缩过头自动弹回）
 let anim = null; // 相机动画 rAF
-let twinkleRaf = null; // 宇宙视图呼吸闪烁循环（低功耗：仅宇宙模式、页面可见、非 reduced-motion）
+let twinkleRaf = null; // 呼吸闪烁循环（低功耗：仅星系/星团/中档，页面可见、非 reduced-motion）
 
-// ---- 宏观视图呼吸闪烁：星系星云 / 星座星团随时间明暗变化（静止也有生命力）----
-// 宇宙视图全开；星座视图仅星团/中档（聚合渲染，成本低）闪烁，放大到节点档暂停（内容多）
+// ---- 呼吸闪烁：星系星云 / 星团随时间明暗变化（静止也有生命力）----
+// 星系层与星团/中档全开；节点档内容多暂停（LOD 由循环内按权重判断）
 function startTwinkle() {
   stopTwinkle();
   if (fx.reducedMotion.value) return; // 尊重减弱动效
   const loop = () => {
     twinkleRaf = null;
     if (document.hidden) return; // 页面隐藏即停
-    if (mode.value === 'universe') {
-      renderer.render();
-      twinkleRaf = requestAnimationFrame(loop);
-      return;
-    }
-    if (mode.value === 'constellation') {
-      const w = lodWeights(renderer.camera.scale);
-      if (w.cluster > 0.02 || w.mid > 0.02) renderer.render(); // 星团/中档呼吸；节点档跳过
-      twinkleRaf = requestAnimationFrame(loop);
-      return;
-    }
-    // 其他模式停止
+    const w = worldWeights(renderer.camera.scale);
+    if (w.galaxy > 0.02 || w.cluster > 0.02 || w.mid > 0.02) renderer.render(); // 节点档跳过
+    twinkleRaf = requestAnimationFrame(loop);
   };
   twinkleRaf = requestAnimationFrame(loop);
 }
@@ -147,7 +130,7 @@ async function load() {
     const { nodes, edges } = await api.graphAll();
     allNodes = nodes;
     allEdges = edges;
-    buildUniverse();
+    buildWorld();
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -155,19 +138,20 @@ async function load() {
   }
 }
 
-function buildUniverse() {
+// 一体大地图：全部学科节点嵌入统一世界坐标（星系锚点 + 学科内 DAG 分层）
+function buildWorld() {
   const bySubject = new Map();
   for (const n of allNodes) {
     const s = n.subject ?? '未分类';
     bySubject.set(s, (bySubject.get(s) ?? 0) + 1);
   }
-  const subjects = [...bySubject].map(([subject, count]) => ({ subject, count }));
-  const anchors = layoutUniverse(subjects);
-  galaxies.value = subjects.map((s) => ({ ...s, ...anchors.get(s.subject) }));
-  renderer.setUniverse(galaxies.value);
-  mode.value = 'universe';
-  currentSubject.value = '';
-  fitUniverse(false);
+  const subjects = [...bySubject]
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+    .map(([subject, count]) => ({ subject, count }));
+  const { galaxies: gs, pos } = layoutWorld(subjects, allNodes, allEdges);
+  galaxies.value = gs;
+  renderer.setWorld({ galaxies: gs, nodes: allNodes, edges: allEdges, pos });
+  fitWholeMap(false);
   applyNavOverlay();
   renderer.render();
   startTwinkle();
@@ -193,69 +177,46 @@ watch(
   { deep: true },
 );
 
-function fitUniverse() {
+// 全景：适配整个一体地图（星系 + 学科节点包围盒），限制在星系档阈值内
+function fitWholeMap(animate = false) {
   if (!galaxies.value.length) return;
-  const pad = 90;
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const pad = 130;
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
   for (const g of galaxies.value) {
-    x0 = Math.min(x0, g.x - g.r - pad);
-    y0 = Math.min(y0, g.y - g.r - pad - 40 / renderer.camera.scale);
-    x1 = Math.max(x1, g.x + g.r + pad);
-    y1 = Math.max(y1, g.y + g.r + pad);
+    x0 = Math.min(x0, g.x - g.r);
+    y0 = Math.min(y0, g.y - g.r - 70);
+    x1 = Math.max(x1, g.x + g.r);
+    y1 = Math.max(y1, g.y + g.r + 30);
+  }
+  const pos = renderer.data?.pos;
+  if (pos) {
+    for (const p of pos.values()) {
+      x0 = Math.min(x0, p.x);
+      y0 = Math.min(y0, p.y);
+      x1 = Math.max(x1, p.x);
+      y1 = Math.max(y1, p.y);
+    }
   }
   const w = wrap.value.clientWidth;
   const h = wrap.value.clientHeight;
-  universeCam = {
-    x: (x0 + x1) / 2,
-    y: (y0 + y1) / 2,
-    scale: Math.min(1.2, Math.max(0.05, Math.min(w / (x1 - x0), h / (y1 - y0)))),
-  };
-  renderer.camera.x = universeCam.x;
-  renderer.camera.y = universeCam.y;
-  renderer.camera.scale = universeCam.scale;
+  const scale = Math.min(
+    LOD.GALAXY * 0.9, // 全景落在星系档
+    Math.max(0.03, Math.min(w / (x1 - x0 + pad * 2), h / (y1 - y0 + pad * 2))),
+  );
+  minScale = scale * 0.6;
+  const target = { x: (x0 + x1) / 2, y: (y0 + y1) / 2, scale };
+  if (animate) animateCamera(target);
+  else Object.assign(renderer.camera, target);
 }
 
-// ---- 宇宙 ⇄ 星座 ----
-function enterGalaxy(subject, { animate = true } = {}) {
+// ---- 连续缩放（一体地图无视图切换）----
+function focusSubject(subject) {
   const g = galaxies.value.find((x) => x.subject === subject);
   if (!g) return;
-  const nodes = allNodes.filter((n) => (n.subject ?? '未分类') === subject);
-  const ids = new Set(nodes.map((n) => n.id));
-  const edges = allEdges.filter((e) => ids.has(e.from) && ids.has(e.to));
-  const pos = layoutConstellation(nodes, edges);
-  renderer.setConstellation({ nodes, edges, pos });
-  mode.value = 'constellation';
-  currentSubject.value = subject;
-  startTwinkle(); // 星座视图星团档也呼吸闪烁（节点档由循环内按 LOD 暂停）
-  universeCam = universeCam ?? { ...renderer.camera };
-
-  // 适配视野
-  const pad = 120;
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const p of pos.values()) {
-    x0 = Math.min(x0, p.x);
-    y0 = Math.min(y0, p.y);
-    x1 = Math.max(x1, p.x);
-    y1 = Math.max(y1, p.y);
-  }
-  const w = wrap.value.clientWidth;
-  const h = wrap.value.clientHeight;
-  const fitScale = Math.min(1.6, Math.max(0.02, Math.min(w / (x1 - x0 + pad * 2), h / (y1 - y0 + pad * 2))));
-  exitScale = Math.min(LOD.EXIT, fitScale * 0.55);
-  const target = { x: (x0 + x1) / 2, y: (y0 + y1) / 2, scale: fitScale };
-  if (animate) animateCamera(target);
-  else Object.assign(renderer.camera, target);
-  applyNavOverlay();
-  renderer.render();
-}
-
-function exitToUniverse({ animate = true } = {}) {
-  if (mode.value === 'universe') return;
-  buildUniverse();
-  const target = universeCam ?? { x: 0, y: 0, scale: 0.6 };
-  if (animate) animateCamera(target);
-  else Object.assign(renderer.camera, target);
-  renderer.render();
+  animateCamera({ x: g.x, y: g.y, scale: LOD.NODE * 1.25 }, 560); // 平滑飞到该学科节点档
 }
 
 // ---- 相机过渡动画（用户操作即打断）----
@@ -310,8 +271,8 @@ function onPointerMove(e) {
     const [a, b] = [...pointers.values()];
     const d = Math.hypot(a.x - b.x, a.y - b.y);
     if (pinch.d0 > 0) {
-      renderer.camera.scale = Math.min(4, Math.max(0.03, pinch.scale0 * (d / pinch.d0)));
-      afterZoom();
+      renderer.camera.scale = Math.min(4, Math.max(minScale, pinch.scale0 * (d / pinch.d0)));
+      renderer.render();
     }
     return;
   }
@@ -347,7 +308,7 @@ function updateTip(hit, e) {
   if (hit.type === 'galaxy') {
     const g = galaxies.value.find((x) => x.subject === hit.subject);
     tip.value.title = hit.subject;
-    tip.value.sub = `${g?.count ?? 0} 节点 · 单击进入`;
+    tip.value.sub = `${g?.count ?? 0} 节点 · 单击聚焦`;
   } else if (hit.type === 'cluster') {
     tip.value.title = `星团 ×${hit.count}`;
     tip.value.sub = '单击放大解体';
@@ -370,7 +331,7 @@ function onPointerUp(e) {
   const hit = renderer.hitTest(e.offsetX, e.offsetY);
   if (!hit) return;
   if (hit.type === 'galaxy') {
-    enterGalaxy(hit.subject);
+    focusSubject(hit.subject);
   } else if (hit.type === 'cluster') {
     // 单击星团：向其中心放大一档
     animateCamera({ x: hit.cx, y: hit.cy, scale: LOD.CLUSTER * 1.6 }, 320);
@@ -393,51 +354,40 @@ function onDblClick(e) {
   if (hit?.type === 'node') {
     // 双击节点 → 在中心视图打开
     starmap.centerOn(hit.id).then(() => router.push('/')).catch((err) => ui.toast(err.message, 'error'));
-  } else if (!hit && mode.value === 'constellation') {
-    exitToUniverse();
   }
+  // 空白处双击无操作（一体地图无需返回）
 }
 
 function onWheel(e) {
   cancelAnim();
   const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
   const cam = renderer.camera;
-  const next = Math.min(4, Math.max(0.03, cam.scale * factor));
+  const next = Math.min(4, Math.max(minScale, cam.scale * factor)); // 连续缩放，clamp 防缩没/缩爆
   const w = renderer.toWorld(e.offsetX, e.offsetY);
   cam.scale = next;
   cam.x = w.x - (e.offsetX - renderer.width / 2) / next;
   cam.y = w.y - (e.offsetY - renderer.height / 2) / next;
-  afterZoom();
-}
-
-// 缩放后：重绘 + 缩小过阈值自动退回宇宙视图
-function afterZoom() {
   renderer.render();
-  if (mode.value === 'constellation' && renderer.camera.scale < exitScale) exitToUniverse();
 }
 
 function resize() {
   if (!wrap.value || !renderer) return;
   renderer.resize(wrap.value.clientWidth, wrap.value.clientHeight, window.devicePixelRatio || 1);
-  if (mode.value === 'universe') fitUniverse();
   renderer.render();
 }
-
-// ---- 压测入口（隐藏 debug：浏览器 console 调 window.__starmapStress(2000)）----
 function installStressHook() {
   window.__starmapStress = (n = 2000, { seconds = 5 } = {}) => {
-    const g = makeSyntheticGraph(n, { subjectCount: 1 });
+    const g = makeSyntheticGraph(n, { subjectCount: 4 });
     allNodes = g.nodes;
     allEdges = g.edges;
-    buildUniverse();
-    enterGalaxy(g.nodes[0].subject, { animate: false });
+    buildWorld();
     return new Promise((resolve) => {
       let frames = 0;
       const t0 = performance.now();
       const sweep = (now) => {
-        // 在星团/过渡/节点档之间往复扫缩放，覆盖三档 LOD
+        // 在全景星系/星团/过渡/节点档之间往复扫缩放，覆盖四档 LOD
         const phase = ((now - t0) / 1000 / seconds) * Math.PI * 2;
-        renderer.camera.scale = 0.08 + (2.6 - 0.08) * (0.5 - 0.5 * Math.cos(phase * 3));
+        renderer.camera.scale = 0.08 + (3 - 0.08) * (0.5 - 0.5 * Math.cos(phase * 3));
         renderer.camera.x = Math.sin(phase) * 400;
         renderer.camera.y = Math.cos(phase * 0.7) * 300;
         renderer.render();

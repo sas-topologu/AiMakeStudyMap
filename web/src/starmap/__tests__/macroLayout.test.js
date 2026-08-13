@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   layoutUniverse,
   layoutConstellation,
+  layoutWorld,
   bucketize,
   bucketKeyOf,
   makeSyntheticGraph,
@@ -58,6 +59,66 @@ describe('layoutConstellation', () => {
     const pos = layoutConstellation([N('A'), N('B')], [PRE('A', 'B'), PRE('B', 'A')]);
     expect(Number.isFinite(pos.get('A').x)).toBe(true);
     expect(Number.isFinite(pos.get('B').y)).toBe(true);
+  });
+});
+
+describe('layoutWorld', () => {
+  const nodes = [
+    N('M1'), N('M2'), N('M3'), N('M4'), N('M5'), N('M6'),
+    { id: 'P1', title: 'P1', subject: '物理' },
+    { id: 'P2', title: 'P2', subject: '物理' },
+  ];
+  const edges = [
+    PRE('M2', 'M1'), PRE('M3', 'M2'), PRE('M4', 'M3'), PRE('M5', 'M4'), PRE('M6', 'M5'),
+    PRE('P2', 'P1'),
+  ];
+  const subjects = [
+    { subject: '数学', count: 6 },
+    { subject: '物理', count: 2 },
+  ];
+
+  it('所有节点都有全局坐标且坐标有限', () => {
+    const { pos } = layoutWorld(subjects, nodes, edges);
+    expect(pos.size).toBe(nodes.length);
+    for (const n of nodes) {
+      const p = pos.get(n.id);
+      expect(p).toBeDefined();
+      expect(Number.isFinite(p.x)).toBe(true);
+      expect(Number.isFinite(p.y)).toBe(true);
+    }
+  });
+
+  it('节点聚集在所属星系锚点附近（嵌入世界坐标）', () => {
+    const { galaxies, pos } = layoutWorld(subjects, nodes, edges);
+    const math = galaxies.find((g) => g.subject === '数学');
+    const phys = galaxies.find((g) => g.subject === '物理');
+    expect(math).toBeDefined();
+    expect(phys).toBeDefined();
+    expect(Math.hypot(math.x - phys.x, math.y - phys.y)).toBeGreaterThan(100); // 两星系分开
+    for (const n of nodes.slice(0, 6)) {
+      const p = pos.get(n.id);
+      const d = Math.hypot(p.x - math.x, p.y - math.y);
+      expect(d).toBeLessThan(400); // 学科内相对星系锚点偏移有限
+    }
+  });
+
+  it('相邻星系中心距 ≥ 学科对角 + 边距（不重叠）', () => {
+    const { galaxies } = layoutWorld(subjects, nodes, edges);
+    // 两学科：相距应不小于两者半径和
+    const d = Math.hypot(galaxies[0].x - galaxies[1].x, galaxies[0].y - galaxies[1].y);
+    expect(d).toBeGreaterThan(galaxies[0].r + galaxies[1].r + 100);
+  });
+
+  it('确定性：同数据同结果', () => {
+    const a = layoutWorld(subjects, nodes, edges);
+    const b = layoutWorld(
+      [...subjects].reverse(),
+      [...nodes].reverse(),
+      [...edges].reverse(),
+    );
+    for (const n of nodes) {
+      expect(b.pos.get(n.id)).toEqual(a.pos.get(n.id));
+    }
   });
 });
 

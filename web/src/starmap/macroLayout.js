@@ -32,6 +32,78 @@ export function layoutUniverse(subjects) {
 
 const galaxyRadius = (count) => 42 + 13 * Math.sqrt(count);
 
+// ---- 一体大地图：学科星系 + 学科内节点统一世界坐标 ----
+// 所有学科合并为一张连续地图：星系锚点沿椭圆分布（相邻间距 ≥ 学科局部布局对角 +
+// 边距，保证星系内节点不互相重叠）；各学科节点按 DAG 分层后平移到星系锚点。
+// 返回 { galaxies: [{subject,count,x,y,r}], pos: Map<id,{x,y}> }
+export function layoutWorld(subjects, nodes, edges) {
+  const bySubject = new Map();
+  for (const n of nodes) {
+    const subj = n.subject ?? '未分类';
+    if (!bySubject.has(subj)) bySubject.set(subj, []);
+    bySubject.get(subj).push(n);
+  }
+  // 各学科局部布局 + 包围盒（layoutConstellation 复用，确定性不变）
+  const locals = new Map();
+  let maxDiag = 0;
+  for (const [subj, list] of bySubject) {
+    const ids = new Set(list.map((n) => n.id));
+    const localEdges = edges.filter(
+      (e) => e.type === 'prerequisite' && ids.has(e.from) && ids.has(e.to),
+    );
+    const pos = layoutConstellation(list, localEdges);
+    let x0 = Infinity;
+    let y0 = Infinity;
+    let x1 = -Infinity;
+    let y1 = -Infinity;
+    for (const p of pos.values()) {
+      x0 = Math.min(x0, p.x);
+      y0 = Math.min(y0, p.y);
+      x1 = Math.max(x1, p.x);
+      y1 = Math.max(y1, p.y);
+    }
+    const w = x1 - x0 || 0;
+    const h = y1 - y0 || 0;
+    maxDiag = Math.max(maxDiag, Math.hypot(w, h));
+    locals.set(subj, { pos, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 });
+  }
+  // 星系锚点：椭圆均匀分布，相邻弦距 ≥ 学科对角 + 边距
+  const sorted = [...subjects].sort((a, b) => (a.subject < b.subject ? -1 : 1));
+  const n = sorted.length;
+  const chord = maxDiag + 260;
+  const anchors = new Map();
+  if (n <= 1) {
+    anchors.set(sorted[0].subject, { x: 0, y: 0 });
+  } else {
+    const rx = ((chord * n) / (2 * Math.PI)) * 1.6;
+    const ry = rx * 0.62;
+    sorted.forEach((s, i) => {
+      const a = (-90 + (360 * i) / n) * DEG; // 从正上方起顺时针均布
+      anchors.set(s.subject, { x: Math.cos(a) * rx, y: Math.sin(a) * ry });
+    });
+  }
+  const galaxies = sorted.map((s) => {
+    const a = anchors.get(s.subject);
+    return {
+      subject: s.subject,
+      count: s.count,
+      x: a.x,
+      y: a.y,
+      r: galaxyRadius(s.count),
+      local: locals.get(s.subject) ?? null,
+    };
+  });
+  // 节点全局坐标：局部坐标平移到星系锚点
+  const pos = new Map();
+  for (const g of galaxies) {
+    if (!g.local) continue;
+    for (const [id, p] of g.local.pos) {
+      pos.set(id, { x: p.x - g.local.cx + g.x, y: p.y - g.local.cy + g.y });
+    }
+  }
+  return { galaxies, pos };
+}
+
 // ---- 星座视图 ----
 // nodes: [{ id, ... }]；edges: [{ from, to, type }]（from 的前置是 to）
 // → Map<id, { x, y, layer }>；layer 0 在底部，向上递增

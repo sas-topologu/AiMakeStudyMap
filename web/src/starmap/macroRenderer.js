@@ -1,43 +1,79 @@
-// 宏观视图渲染器：宇宙视图（学科星系/星云）+ 星座视图（LOD 三档）
+// 宏观视图渲染器：一体大地图（所有学科合并为连续世界，模仿游戏地图连续缩放）
 // 复用 canvasBase.js 的相机/星空/星点绘制；布局数据来自 macroLayout.js（纯函数）
 //
-// LOD 三档（按相机 scale，阈值均为可调常量）：
-//   远（scale < CLUSTER）：网格聚合星团——视口内节点分桶，桶绘发光星团（亮度∝节点数），
-//                         桶间有 prerequisite 边则绘星座连线，星团上标聚合数
-//   中（CLUSTER~NODE）：  离散节点小点（无标题）+ prerequisite 主干连线
-//   近（scale > NODE）：  完整离散节点网络——四态亮度+可信度描边+标题，可点击
-// 阈值附近 ±FADE 区间内两档叠加淡入淡出，平滑切换。
+// LOD 四档（按相机 scale 连续过渡，阈值均为可调常量）：
+//   星系（scale < GALAXY）：全景——学科星系星云 + 名称标签（缩小看大片星空与星云）
+//   星团（GALAXY~CLUSTER）：网格聚合星团——视口内节点分桶，桶绘发光星团（亮度∝节点数），
+//                          桶间有同学科 prerequisite 边则绘星座连线，星团上标聚合数
+//   中档（CLUSTER~NODE）：离散节点小点（无标题）+ 同学科 prerequisite 主干连线
+//   节点（scale > NODE）：完整离散节点网络——四态亮度+可信度描边+标题，可点击；
+//                          连线按学习状态分档（仿中心视图技能树模式）+ hover 聚焦；
+//                          相关线每节点最多 3 条；跨学科边淡化为细虚线（不横穿全图）
+// 相邻档位 ±FADE 区间内两档叠加淡入淡出，平滑切换。
 // 视口裁剪：每帧只处理 visibleWorldRect 内的单元，帧耗 O(可见单元)。
 //
-// 阶段 5 预留：setHighlight({ nodes, edges }) 叠加"路线高亮"层——
-// 中/近档绘制时在常规图形之上叠加描边加粗的高亮边与节点外环。
+// 阶段 5 预留：setHighlight({ nodes, edges, subjects }) 叠加"路线高亮"层——
+// 节点档绘制时叠加描边加粗的高亮边与节点外环，星系层给涉及学科加金色外环。
 import { CanvasStage, STATE_STYLE } from './canvasBase.js';
 import { bucketize, bucketKeyOf, mulberry32, hashStr } from './macroLayout.js';
 
 export const LOD = {
-  CLUSTER: 0.5, // scale 低于此 → 星团档
-  NODE: 1.4, // scale 高于此 → 节点档
+  GALAXY: 0.32, // scale 低于此 → 星系星云档（全景）
+  CLUSTER: 0.5, // 低于此（且高于 GALAXY）→ 星团档
+  NODE: 1.4, // 高于此 → 节点档
   FADE: 0.25, // 阈值附近淡入淡出区间（相对 ±25%）
   CELL_PX: 96, // 聚合网格的屏幕基准边长（像素）
-  EXIT: 0.16, // 星座视图缩放到此比例以下 → 退回宇宙视图（MapView 会结合 fitScale 收紧）
+  EXIT: 0.16, // 兼容保留（一体地图后不再使用）
 };
 
 const clamp01 = (t) => Math.min(1, Math.max(0, t));
+const fadeIn = (scale, threshold) =>
+  clamp01((scale - threshold * (1 - LOD.FADE)) / (threshold * 2 * LOD.FADE));
 
-// 三档权重（同帧可能两档叠加，处于过渡带）
-export function lodWeights(scale) {
-  const cluster = 1 - clamp01((scale - LOD.CLUSTER * (1 - LOD.FADE)) / (LOD.CLUSTER * 2 * LOD.FADE));
-  const node = clamp01((scale - LOD.NODE * (1 - LOD.FADE)) / (LOD.NODE * 2 * LOD.FADE));
-  const mid = Math.max(0, 1 - cluster - node);
-  return { cluster, mid, node };
+const RELATED_MAX_NODE = 3; // 节点档：每节点最多显示的相关线条数（仿中心视图折叠，无徽标）
+
+// 相关线截断：节点 related 边超阈值时按另一端 id 排序保留前 N 条，其余隐藏
+function collapseRelated(edges) {
+  const relatedByNode = new Map();
+  for (const e of edges) {
+    if (e.type !== 'related') continue;
+    for (const id of [e.from, e.to]) {
+      if (!relatedByNode.has(id)) relatedByNode.set(id, []);
+      relatedByNode.get(id).push(e);
+    }
+  }
+  const hidden = new Set();
+  for (const [id, list] of relatedByNode) {
+    if (list.length <= RELATED_MAX_NODE) continue;
+    const sorted = [...list].sort((a, b) => {
+      const oa = a.from === id ? a.to : a.from;
+      const ob = b.from === id ? b.to : b.from;
+      return oa < ob ? -1 : 1;
+    });
+    for (const e of sorted.slice(RELATED_MAX_NODE)) hidden.add(e);
+  }
+  return new Set(edges.filter((e) => e.type === 'related' && !hidden.has(e)));
 }
+
+// 四档权重（同帧可能多档叠加，处于过渡带）
+export function worldWeights(scale) {
+  const galaxy = 1 - fadeIn(scale, LOD.GALAXY);
+  const cluster = fadeIn(scale, LOD.GALAXY) * (1 - fadeIn(scale, LOD.CLUSTER));
+  const node = fadeIn(scale, LOD.NODE);
+  const mid = Math.max(0, 1 - galaxy - cluster - node);
+  return { galaxy, cluster, mid, node };
+}
+
+// 兼容旧调用（星团/节点两档）：一体地图后仅节点档判断仍会用到
+const lodWeights = (scale) => {
+  const w = worldWeights(scale);
+  return { cluster: w.cluster, mid: w.mid, node: w.node };
+};
 
 export class MacroRenderer extends CanvasStage {
   constructor(canvas) {
     super(canvas);
-    this.mode = 'universe';
-    this.galaxies = []; // { subject, count, x, y, r, sparkles, glow }
-    this.data = null; // 星座视图：{ nodes, nodesById, edges, pos }
+    this.data = null; // 世界数据：{ galaxies, nodes, nodesById, edges, pos, visibleRelated }
     this.hoverTarget = null;
     this.frameClusters = []; // 本帧星团（hitTest 用，屏幕坐标）
     // 叠加层：导航路线（金色，nodes/edges/subjects）与热门路径（青色）
@@ -46,36 +82,42 @@ export class MacroRenderer extends CanvasStage {
   }
 
   // ---- 数据 ----
-  setUniverse(list) {
-    this.mode = 'universe';
-    this.galaxies = list.map((g) => {
-      const rand = mulberry32(hashStr(g.subject));
-      const sparkleCount = Math.min(240, 6 + Math.round(g.count * 2.2));
-      const sparkles = Array.from({ length: sparkleCount }, () => {
-        const a = rand() * Math.PI * 2;
-        const d = Math.sqrt(rand()) * g.r * 0.82; // 圆盘均匀分布
-        return {
-          dx: Math.cos(a) * d,
-          dy: Math.sin(a) * d,
-          r: rand() * 1.6 + 0.5,
-          a: rand() * 0.6 + 0.3,
-          twPhase: rand() * Math.PI * 2, // 呼吸闪烁相位（错开）
-          twSpeed: 0.5 + rand() * 1.5, // 闪烁角速度
-        };
-      });
-      return { ...g, sparkles, glow: Math.min(0.55, 0.22 + 0.035 * Math.sqrt(g.count)) };
-    });
-    this.hoverTarget = null;
-  }
-
-  setConstellation({ nodes, edges, pos }) {
-    this.mode = 'constellation';
-    this.data = { nodes, nodesById: Object.fromEntries(nodes.map((n) => [n.id, n])), edges, pos };
+  setWorld({ galaxies, nodes, edges, pos }) {
+    const nodesById = Object.fromEntries(nodes.map((n) => [n.id, n]));
+    // 预计算跨学科边标志（渲染时跨学科长线淡化/不画）
+    const edgesMeta = edges.map((e) => ({
+      ...e,
+      cross: (nodesById[e.from]?.subject ?? '') !== (nodesById[e.to]?.subject ?? ''),
+    }));
+    this.data = {
+      galaxies: galaxies.map((g) => {
+        const rand = mulberry32(hashStr(g.subject));
+        const sparkleCount = Math.min(240, 6 + Math.round(g.count * 2.2));
+        const sparkles = Array.from({ length: sparkleCount }, () => {
+          const a = rand() * Math.PI * 2;
+          const d = Math.sqrt(rand()) * g.r * 0.82; // 圆盘均匀分布
+          return {
+            dx: Math.cos(a) * d,
+            dy: Math.sin(a) * d,
+            r: rand() * 1.6 + 0.5,
+            a: rand() * 0.6 + 0.3,
+            twPhase: rand() * Math.PI * 2, // 呼吸闪烁相位（错开）
+            twSpeed: 0.5 + rand() * 1.5, // 闪烁角速度
+          };
+        });
+        return { ...g, sparkles, glow: Math.min(0.55, 0.22 + 0.035 * Math.sqrt(g.count)) };
+      }),
+      nodes,
+      nodesById,
+      edges: edgesMeta,
+      pos,
+      visibleRelated: collapseRelated(edgesMeta), // 相关线截断（每节点最多 RELATED_MAX_NODE 条）
+    };
     this.hoverTarget = null;
     this.frameClusters = [];
   }
 
-  // 阶段 5 路线高亮：nodes=[id...]，edges=[{from,to}...]（无向匹配），subjects=[学科…]（宇宙视图外环）
+  // 阶段 5 路线高亮：nodes=[id...]，edges=[{from,to}...]（无向匹配），subjects=[学科…]（星系层外环）
   setHighlight({ nodes = [], edges = [], subjects = [] } = {}) {
     this.highlight = {
       nodes: new Set(nodes),
@@ -95,17 +137,17 @@ export class MacroRenderer extends CanvasStage {
 
   // ---- 命中检测（屏幕坐标）----
   hitTest(sx, sy) {
-    if (this.mode === 'universe') {
-      const w = this.toWorld(sx, sy);
-      for (const g of this.galaxies) {
+    if (!this.data) return null;
+    const weights = worldWeights(this.camera.scale);
+    const w = this.toWorld(sx, sy);
+    // 星系层（权重过半时星系优先命中）
+    if (weights.galaxy > 0.5) {
+      for (const g of this.data.galaxies) {
         if (Math.hypot(w.x - g.x, w.y - g.y) <= g.r) return { type: 'galaxy', subject: g.subject };
       }
-      return null;
     }
-    if (!this.data) return null;
     // 节点档（含过渡带）优先命中节点
-    if (this.camera.scale > LOD.NODE * (1 - LOD.FADE)) {
-      const w = this.toWorld(sx, sy);
+    if (weights.node > 0.3) {
       let best = null;
       let bestDist = Infinity;
       for (const [id, p] of this.data.pos) {
@@ -117,9 +159,11 @@ export class MacroRenderer extends CanvasStage {
       }
       if (best) return { type: 'node', id: best };
     }
-    for (const c of this.frameClusters) {
-      if (Math.hypot(sx - c.x, sy - c.y) <= Math.max(14, c.r)) {
-        return { type: 'cluster', cx: c.cx, cy: c.cy, count: c.count };
+    if (weights.cluster + weights.mid > 0.2) {
+      for (const c of this.frameClusters) {
+        if (Math.hypot(sx - c.x, sy - c.y) <= Math.max(14, c.r)) {
+          return { type: 'cluster', cx: c.cx, cy: c.cy, count: c.count };
+        }
       }
     }
     return null;
@@ -131,24 +175,29 @@ export class MacroRenderer extends CanvasStage {
     ctx.clearRect(0, 0, this.width, this.height);
     this.drawBackground();
     this.beginWorld();
-    if (this.mode === 'universe') this._drawUniverse();
-    else if (this.data) this._drawConstellation();
+    if (this.data) {
+      const w = worldWeights(this.camera.scale);
+      if (w.galaxy > 0.02) this._drawGalaxies(w.galaxy);
+      if (w.cluster > 0.02) this._drawClusters(w.cluster);
+      if (w.mid > 0.02) this._drawMid(w.mid);
+      if (w.node > 0.02) this._drawNear(w.node);
+    }
     ctx.restore();
   }
 
-  _drawUniverse() {
+  _drawGalaxies(alpha) {
     const { ctx, camera } = this;
     const rect = this.visibleWorldRect(160);
     const hoverSubject = this.hoverTarget?.type === 'galaxy' ? this.hoverTarget.subject : null;
-    for (const g of this.galaxies) {
+    for (const g of this.data.galaxies) {
       if (g.x + g.r < rect.x0 || g.x - g.r > rect.x1 || g.y + g.r < rect.y0 || g.y - g.r > rect.y1) {
         continue; // 视口裁剪
       }
       const hot = g.subject === hoverSubject;
-      const alpha = g.glow * (hot ? 1.5 : 1);
+      const glow = g.glow * (hot ? 1.5 : 1) * alpha;
       const grad = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, g.r);
-      grad.addColorStop(0, `rgba(214,228,255,${Math.min(0.95, alpha + 0.25)})`);
-      grad.addColorStop(0.45, `rgba(122,162,255,${alpha})`);
+      grad.addColorStop(0, `rgba(214,228,255,${Math.min(0.95, glow + 0.25)})`);
+      grad.addColorStop(0.45, `rgba(122,162,255,${glow})`);
       grad.addColorStop(1, 'rgba(122,162,255,0)');
       ctx.fillStyle = grad;
       ctx.beginPath();
@@ -160,7 +209,7 @@ export class MacroRenderer extends CanvasStage {
       const t = performance.now() / 1000;
       for (const s of g.sparkles) {
         const tw = 0.7 + 0.3 * Math.sin(t * s.twSpeed + s.twPhase); // 闪烁 0.7~1.0
-        ctx.globalAlpha = Math.min(1, s.a * tw * (hot ? 1 : 0.85));
+        ctx.globalAlpha = Math.min(1, s.a * tw * (hot ? 1 : 0.85) * alpha);
         ctx.beginPath();
         ctx.arc(g.x + s.dx, g.y + s.dy, s.r, 0, Math.PI * 2);
         ctx.fill();
@@ -168,7 +217,7 @@ export class MacroRenderer extends CanvasStage {
       ctx.globalAlpha = 1;
 
       if (hot) {
-        ctx.strokeStyle = 'rgba(190,215,255,0.8)';
+        ctx.strokeStyle = `rgba(190,215,255,${0.8 * alpha})`;
         ctx.lineWidth = 1.5 / camera.scale;
         ctx.beginPath();
         ctx.arc(g.x, g.y, g.r + 4 / camera.scale, 0, Math.PI * 2);
@@ -181,7 +230,7 @@ export class MacroRenderer extends CanvasStage {
         ctx.strokeStyle = '#ffe27a';
         ctx.shadowColor = 'rgba(255,226,122,0.7)';
         ctx.shadowBlur = 12;
-        ctx.globalAlpha = 0.9;
+        ctx.globalAlpha = 0.9 * alpha;
         ctx.lineWidth = 2.2 / camera.scale;
         ctx.beginPath();
         ctx.arc(g.x, g.y, g.r + 7 / camera.scale, 0, Math.PI * 2);
@@ -190,22 +239,15 @@ export class MacroRenderer extends CanvasStage {
       }
 
       // 学科名 + 节点数（屏幕恒定字号）
-      ctx.fillStyle = 'rgba(226,232,255,0.95)';
+      ctx.fillStyle = `rgba(226,232,255,${0.95 * alpha})`;
       ctx.font = `600 ${15 / camera.scale}px system-ui, "PingFang SC", "Microsoft YaHei", sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.fillText(g.subject, g.x, g.y + g.r + 8 / camera.scale);
-      ctx.fillStyle = 'rgba(139,149,184,0.9)';
+      ctx.fillStyle = `rgba(139,149,184,${0.9 * alpha})`;
       ctx.font = `${11 / camera.scale}px system-ui, sans-serif`;
       ctx.fillText(`${g.count} 节点`, g.x, g.y + g.r + 26 / camera.scale);
     }
-  }
-
-  _drawConstellation() {
-    const w = lodWeights(this.camera.scale);
-    if (w.cluster > 0.02) this._drawClusters(w.cluster);
-    if (w.mid > 0.02) this._drawMid(w.mid);
-    if (w.node > 0.02) this._drawNear(w.node);
   }
 
   // 聚合网格边长（世界单位，按 2 的幂量化，避免缩放时桶抖动）
@@ -238,7 +280,7 @@ export class MacroRenderer extends CanvasStage {
     ctx.lineWidth = 1.2 / camera.scale;
     const drawn = new Set();
     for (const e of this.data.edges) {
-      if (e.type !== 'prerequisite') continue;
+      if (e.type !== 'prerequisite' || e.cross) continue; // 跨学科长线在星团档不画
       const a = this.data.pos.get(e.from);
       const b = this.data.pos.get(e.to);
       if (!a || !b) continue;
@@ -307,7 +349,7 @@ export class MacroRenderer extends CanvasStage {
     ctx.globalAlpha = 0.4 * alpha;
     ctx.lineWidth = 1 / camera.scale;
     for (const e of this.data.edges) {
-      if (e.type !== 'prerequisite') continue;
+      if (e.type !== 'prerequisite' || e.cross) continue; // 跨学科长线在中档不画
       const a = this.data.pos.get(e.from);
       const b = this.data.pos.get(e.to);
       if (!a || !b) continue;
@@ -336,13 +378,16 @@ export class MacroRenderer extends CanvasStage {
     this._drawHotEdges(alpha);
   }
 
-  // 近档：完整离散节点网络
+  // 近档：完整离散节点网络（连线按学习状态分档 + hover 聚焦）
   _drawNear(alpha) {
     const { ctx, camera } = this;
     const rect = this.visibleWorldRect(60 / camera.scale);
     const hoverId = this.hoverTarget?.type === 'node' ? this.hoverTarget.id : null;
+    const stateOf = (id) => this.data.nodesById[id]?.state ?? 'dim';
+    const bright = (s) => s === 'lit' || s === 'passed';
 
-    // prerequisite 主干 + related（细虚线）
+    // 边：prerequisite 按两端学习状态分档（仿中心视图技能树模式）；
+    // related 截断显示为细虚线；跨学科边淡化为长虚线（联系提示，不横穿）
     for (const e of this.data.edges) {
       const a = this.data.pos.get(e.from);
       const b = this.data.pos.get(e.to);
@@ -350,17 +395,35 @@ export class MacroRenderer extends CanvasStage {
       if ((a.x < rect.x0 && b.x < rect.x0) || (a.x > rect.x1 && b.x > rect.x1)) continue;
       if ((a.y < rect.y0 && b.y < rect.y0) || (a.y > rect.y1 && b.y > rect.y1)) continue;
       const hot = hoverId && (e.from === hoverId || e.to === hoverId);
-      ctx.save();
-      if (e.type === 'prerequisite') {
-        ctx.strokeStyle = '#6ea8ff';
-        ctx.globalAlpha = (hot ? 0.95 : 0.5) * alpha;
-        ctx.lineWidth = (hot ? 1.8 : 1.1) / camera.scale;
+      let baseAlpha;
+      let width;
+      let dash = null;
+      if (e.type === 'related') {
+        if (!this.data.visibleRelated.has(e)) continue;
+        baseAlpha = 0.22;
+        width = 1;
+        dash = [4 / camera.scale, 4 / camera.scale];
+      } else if (e.cross) {
+        baseAlpha = 0.16; // 跨学科前置：极淡长虚线
+        width = 1;
+        dash = [3 / camera.scale, 6 / camera.scale];
       } else {
-        ctx.strokeStyle = 'rgba(196,141,255,0.6)';
-        ctx.globalAlpha = (hot ? 0.9 : 0.35) * alpha;
-        ctx.lineWidth = 1 / camera.scale;
-        ctx.setLineDash([4 / camera.scale, 4 / camera.scale]);
+        const s1 = stateOf(e.from);
+        const s2 = stateOf(e.to);
+        const b1 = bright(s1);
+        const b2 = bright(s2);
+        if (b1 && b2) baseAlpha = 0.75; // 已点亮的树枝
+        else if (b1 || b2) baseAlpha = (b1 ? s2 : s1) === 'open' ? 0.6 : 0.3; // 可解锁/未探索
+        else if (s1 === 'open' || s2 === 'open') baseAlpha = 0.45;
+        else baseAlpha = 0.12; // 未探索迷雾
+        width = 1.1;
       }
+      ctx.save();
+      ctx.strokeStyle = e.type === 'related' ? 'rgba(196,141,255,0.6)' : '#6ea8ff';
+      const focused = hot && !e.cross ? Math.min(1, baseAlpha + 0.4) : hoverId && !hot ? baseAlpha * 0.3 : baseAlpha;
+      ctx.globalAlpha = focused * alpha;
+      ctx.lineWidth = (hot ? width + 0.7 : width) / camera.scale;
+      if (dash) ctx.setLineDash(dash);
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
