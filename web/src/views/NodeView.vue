@@ -69,7 +69,7 @@
           <RichText :text="card.summary" class="summary" @term="onTerm" />
         </section>
 
-        <!-- 正文 sections：按 tier 折叠 -->
+        <!-- 正文 sections：按 tier 折叠；节内可带工具表/例题/易错点（v2.1 跟随知识点） -->
         <CollapsibleSection
           v-for="(sec, i) in listedSections"
           :key="`${nodeId}:${i}:${sec.heading}`"
@@ -80,6 +80,40 @@
           @errata="correctionFor = sec.heading"
         >
           <RichText :text="sec.body" @term="onTerm" />
+
+          <!-- 节内工具表（公式表/口诀/对照） -->
+          <section v-if="sec.tools" class="tool-table">
+            <h3>🧰 {{ sec.tools.heading }}</h3>
+            <ul>
+              <li v-for="(row, ri) in sec.tools.rows" :key="ri">
+                <RichText :text="row" @term="onTerm" />
+              </li>
+            </ul>
+          </section>
+
+          <!-- 节内例题（跟随知识点） -->
+          <section v-if="sec.examples?.length" class="sec-examples">
+            <h3>📝 例题</h3>
+            <ExampleItem
+              v-for="ex in sec.examples"
+              :key="`${nodeId}:${ex.id}`"
+              :example="ex"
+              :show-problem="isExampleProblemShown(readingMode)"
+              :steps-default-open="isStepsDefaultOpen(readingMode)"
+              :answer-default-open="isAnswerDefaultOpen(readingMode)"
+              @term="onTerm"
+            />
+          </section>
+
+          <!-- 节内易错点（跟随知识点） -->
+          <section v-if="sec.pitfalls?.length" class="sec-pitfalls">
+            <h3>⚠️ 易错点</h3>
+            <ul>
+              <li v-for="(p, pi) in sec.pitfalls" :key="pi">
+                <RichText :text="p" @term="onTerm" />
+              </li>
+            </ul>
+          </section>
         </CollapsibleSection>
 
         <!-- 例题（解析/答案双层折叠防剧透） -->

@@ -1684,6 +1684,50 @@ code {
   padding-top: 10px;
 }
 
+/* ---- 节内教学块（v2.1）：工具表 / 例题 / 易错点跟随知识点 ---- */
+.tool-table {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--panel-border);
+  border-left: 3px solid #6ea8ff;
+  border-radius: 8px;
+  background: rgba(110, 168, 255, 0.07);
+}
+
+.tool-table h3,
+.sec-examples h3,
+.sec-pitfalls h3 {
+  font-size: 13px;
+  margin: 0 0 8px;
+  color: var(--text);
+}
+
+.tool-table ul,
+.sec-pitfalls ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.tool-table li {
+  margin: 4px 0;
+  font-family: var(--font-mono, ui-monospace, Consolas, monospace);
+}
+
+.sec-examples {
+  margin-top: 12px;
+}
+
+.sec-pitfalls {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(255, 200, 90, 0.07);
+}
+
+.sec-pitfalls li {
+  margin: 4px 0;
+}
+
 .collapse-head {
   display: flex;
   align-items: center;

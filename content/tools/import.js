@@ -42,8 +42,14 @@ export function loadCards(dir, assetsDir = DEFAULT_ASSETS_DIR) {
       continue;
     }
     const card = result.data;
-    // sections 中出现的每个 [[术语]] 必须在本卡 terms 中有定义
-    const used = new Set(card.sections.flatMap((s) => extractTerms(s.body)));
+    // sections 正文及节内例题/易错/工具表中出现的每个 [[术语]] 必须在本卡 terms 中有定义
+    const sectionTexts = card.sections.flatMap((s) => [
+      s.body,
+      ...(s.examples ?? []).flatMap((e) => [e.problem, ...e.steps, e.answer]),
+      ...(s.pitfalls ?? []),
+      ...(s.tools?.rows ?? []),
+    ]);
+    const used = new Set(sectionTexts.flatMap(extractTerms));
     for (const t of used) {
       if (!(t in card.terms)) errors.push(`${file}: 术语 [[${t}]] 未在本卡 terms 中定义`);
     }

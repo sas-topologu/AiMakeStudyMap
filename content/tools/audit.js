@@ -31,10 +31,16 @@ function auditCard(card, allIds) {
   put(noTier.length === 0, `${noTier.length} 节无 tier 标注（${noTier.slice(0, 3).join('、')}）`);
   put((card.sections ?? []).some((s) => s.tier === 'core'), '无 core 节');
 
-  // 术语闭合
+  // 术语闭合（含节内例题/易错/工具表）
   const termKeys = new Set(Object.keys(card.terms ?? {}));
-  const bodies = (card.sections ?? []).map((s) => s.body)
+  const bodies = (card.sections ?? []).flatMap((s) => [
+    s.body,
+    ...(s.examples ?? []).flatMap((e) => [e.problem, ...(e.steps ?? []), e.answer]),
+    ...(s.pitfalls ?? []),
+    ...(s.tools?.rows ?? []),
+  ])
     .concat((card.examples ?? []).flatMap((e) => [e.problem, ...(e.steps ?? []), e.answer]))
+    .concat(card.pitfalls ?? [])
     .concat([card.summary]);
   const missingTerms = [...new Set(bodies.flatMap(termRefs))].filter((t) => !termKeys.has(t));
   put(missingTerms.length === 0, `正文术语未定义：${missingTerms.slice(0, 5).join('、')}`);
@@ -63,10 +69,14 @@ function auditCard(card, allIds) {
   put(new Set(bank.map((q) => q.type)).size >= 2, '题型 <2 种');
 
   // 例题与易错点
-  put((card.examples ?? []).length >= 2, `例题 <2 道（${card.examples?.length ?? 0}）`);
-  const badSteps = (card.examples ?? []).filter((e) => !Array.isArray(e.steps) || e.steps.length < 2 || !e.answer?.trim());
+  const secExamples = (card.sections ?? []).flatMap((s) => s.examples ?? []);
+  const allExamples = [...(card.examples ?? []), ...secExamples];
+  const secPitfalls = (card.sections ?? []).flatMap((s) => s.pitfalls ?? []);
+  const allPitfalls = [...(card.pitfalls ?? []), ...secPitfalls];
+  put(allExamples.length >= 2, `例题 <2 道（${allExamples.length}）`);
+  const badSteps = allExamples.filter((e) => !Array.isArray(e.steps) || e.steps.length < 2 || !e.answer?.trim());
   put(badSteps.length === 0, `${badSteps.length} 道例题分步不足或缺 answer`);
-  put((card.pitfalls ?? []).length >= 2, `pitfalls <2 条（${card.pitfalls?.length ?? 0}）`);
+  put(allPitfalls.length >= 2, `pitfalls <2 条（${allPitfalls.length}）`);
 
   // media
   const coreCount = (card.media ?? []).filter((m) => m.core === true).length;
