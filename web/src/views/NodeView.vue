@@ -151,24 +151,29 @@
           </div>
         </section>
 
-        <!-- 闯关区：按四态呈现 -->
+        <!-- 闯关区：正式闯关（需倒计时）+ 刷题练习（不计时、可反复） -->
         <section class="panel challenge-box">
           <template v-if="state === 'dim'">
             <p class="muted">🔒 本节点尚未开放。通关相邻节点可解锁，或通过「搜索 / 跃迁」消耗 1 点额度直接开放。</p>
           </template>
-          <template v-else-if="state === 'open'">
-            <button class="btn primary" @click="startChallenge('pass')">闯关（3 题）</button>
+          <template v-else>
+            <div class="challenge-actions">
+              <template v-if="state === 'open'">
+                <button class="btn primary" @click="startChallenge('pass')">闯关（3 题）</button>
+              </template>
+              <template v-else-if="state === 'passed'">
+                <p class="ok-text">✓ 已通关</p>
+                <button class="btn primary" @click="startChallenge('exam')">考核点亮</button>
+              </template>
+              <template v-else-if="state === 'lit'">
+                <p class="ok-text">🌟 已点亮——你已完全掌握本节点</p>
+              </template>
+              <button class="btn ghost" @click="startChallenge('practice')">🔁 刷题练习（不计时）</button>
+            </div>
+            <p v-if="state !== 'lit' && !timer.active" class="muted small">
+              正式闯关 / 考核需开启学习倒计时（不可取消，到时强制收卷）；刷题练习不计时、不占时间
+            </p>
           </template>
-          <template v-else-if="state === 'passed'">
-            <p class="ok-text">✓ 已通关</p>
-            <button class="btn primary" @click="startChallenge('exam')">考核点亮</button>
-          </template>
-          <template v-else-if="state === 'lit'">
-            <p class="ok-text">🌟 已点亮——你已完全掌握本节点</p>
-          </template>
-          <p v-if="state !== 'dim' && !timer.active" class="muted small">
-            闯关需开启学习倒计时（不可取消，到时强制收卷）
-          </p>
         </section>
 
         <!-- 错题复盘入口（本地错题队列，任何状态下可复习） -->
@@ -194,8 +199,9 @@
     <div v-if="view === 'quiz' && paper" class="quiz-overlay">
       <div class="quiz-box panel">
         <header class="quiz-head">
-          <span>{{ paper.mode === 'pass' ? '闯关' : '考核点亮' }} · {{ card?.title }}</span>
-          <span class="quiz-timer" :class="{ warn: timer.remainingSeconds <= 60 }">⏱ {{ timer.remainingText }}</span>
+          <span>{{ paper.mode === 'practice' ? '🔁 刷题练习' : paper.mode === 'pass' ? '闯关' : '考核点亮' }} · {{ card?.title }}</span>
+          <span v-if="paper.mode !== 'practice'" class="quiz-timer" :class="{ warn: timer.remainingSeconds <= 60 }">⏱ {{ timer.remainingText }}</span>
+          <span v-else class="muted small">刷题模式 · 不计时 · 不占时间</span>
         </header>
         <ol class="quiz-list">
           <li v-for="q in paper.questions" :key="q.seq">
@@ -230,7 +236,10 @@
       <div class="quiz-box panel">
         <header class="quiz-head">
           <span>{{ resultHeadline }}</span>
-          <span>{{ result.correct }} / {{ result.total }} 题正确</span>
+          <span>
+            {{ result.correct }} / {{ result.total }} 题正确
+            <span v-if="result.elapsedSeconds != null" class="muted small">· ⏱ 本次用时 {{ result.elapsedSeconds }}s</span>
+          </span>
         </header>
         <p v-if="unlocked.length" class="ok-text">
           解锁了相邻节点：{{ unlocked.map((n) => n.title).join('、') }}
@@ -246,6 +255,7 @@
         </ol>
         <div class="dialog-actions">
           <button v-if="result.result === 'failed'" class="btn primary" @click="retry">返回重试</button>
+          <button v-if="result.result === 'practice'" class="btn primary" @click="retry">再来一组</button>
           <button class="btn ghost" @click="view = 'card'">返回知识卡</button>
         </div>
       </div>
@@ -453,7 +463,12 @@ const credClass = computed(() =>
 );
 const resultHeadline = computed(() => {
   if (!result.value) return '';
-  return { passed: '🎉 闯关成功', lit: '🌟 点亮成功', failed: '未通过，再接再厉' }[result.value.result];
+  return {
+    passed: '🎉 闯关成功',
+    lit: '🌟 点亮成功',
+    failed: '未通过，再接再厉',
+    practice: '📝 刷题完成',
+  }[result.value.result];
 });
 
 async function load() {
@@ -495,7 +510,8 @@ function closeTerm(i) {
 // ---- 闯关闭环 ----
 async function startChallenge(mode) {
   pendingMode.value = mode;
-  if (!timer.active) {
+  // 刷题练习不计时，直接开卷；正式闯关/考核需先开启学习倒计时
+  if (mode !== 'practice' && !timer.active) {
     timerVisible.value = true; // 先设置倒计时
     return;
   }

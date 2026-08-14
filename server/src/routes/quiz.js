@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { parseBody } from '../errors.js';
 import { authRequired, quotaRefresher } from '../middleware/auth.js';
 
-const startSchema = z.object({ mode: z.enum(['pass', 'exam']) });
+const startSchema = z.object({ mode: z.enum(['pass', 'exam', 'practice']) });
 const submitSchema = z.object({
   answers: z.record(z.string(), z.union([z.number(), z.string()])).default({}),
 });

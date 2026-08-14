@@ -1,7 +1,8 @@
-// 闯关与考核
+// 闯关、考核与刷题练习
 // - pass：闯关，试卷恰好 3 题，全对 → passed
 // - exam：考核点亮，题数 clamp(22 - 4*difficulty, 4, 20) 再取题库容量上限，全对 → lit
-// 试卷存内存（paperId → 快照），下发不带答案，提交时服务端判分；计时到期后提交一律拒绝
+// - practice：刷题练习，5 题，不计时、不占时间、不落状态，可无限重复（反复考核/刷题）
+// 试卷存内存（paperId → 快照），下发不带答案，提交时服务端判分；正式模式计时到期后提交一律拒绝
 import crypto from 'node:crypto';
 import { errors } from '../errors.js';
 import { getNode } from '../db/contentRepo.js';
@@ -9,6 +10,7 @@ import { assertCanChallenge, effectiveState, setState } from './stateService.js'
 import { onNodeLit } from './pioneerService.js';
 
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+const PRACTICE_COUNT = 5; // 刷题练习题数
 
 function shuffle(arr) {
   const a = [...arr];
@@ -58,20 +60,22 @@ export function pickQuestions(bank, count) {
 export function createQuizService(db, timerService) {
   const papers = new Map(); // paperId -> { userId, nodeId, mode, questions, createdAt, timerEndsAt }
 
-  // 开卷：状态校验 → 计时校验 → 抽题
+  // 开卷：状态校验 → 计时校验（练习模式跳过）→ 抽题
   function startChallenge(userId, nodeId, mode) {
     const node = getNode(db, nodeId);
     if (!node) throw errors.notFound('节点不存在');
     assertCanChallenge(db, userId, nodeId);
-    const timer = timerService.requireActiveTimer(userId);
+    const practice = mode === 'practice';
+    const timer = practice ? null : timerService.requireActiveTimer(userId);
 
     const bank = db
       .prepare('SELECT * FROM questions WHERE node_id = ? ORDER BY seq')
       .all(nodeId);
     if (bank.length === 0) throw errors.notFound('该节点题库为空');
 
-    const count =
-      mode === 'pass'
+    const count = practice
+      ? Math.min(PRACTICE_COUNT, bank.length)
+      : mode === 'pass'
         ? Math.min(3, bank.length)
         : Math.min(clamp(22 - 4 * node.difficulty, 4, 20), bank.length);
     const selected = pickQuestions(bank, count);
@@ -83,7 +87,7 @@ export function createQuizService(db, timerService) {
       mode,
       questions: selected,
       createdAt: Date.now(),
-      timerEndsAt: timer.endsAt,
+      timerEndsAt: practice ? Infinity : timer.endsAt,
     });
 
     return {
@@ -110,12 +114,14 @@ export function createQuizService(db, timerService) {
   function submit(userId, paperId, answers) {
     const paper = papers.get(paperId);
     if (!paper || paper.userId !== userId) throw errors.notFound('试卷不存在或已提交');
-    if (Date.now() >= paper.timerEndsAt) {
+    const practice = paper.mode === 'practice';
+    if (!practice && Date.now() >= paper.timerEndsAt) {
       papers.delete(paperId);
       throw errors.noTimer('倒计时已结束，本次作答无效');
     }
-    papers.delete(paperId); // 一次性试卷
+    papers.delete(paperId); // 一次性试卷（练习模式可重新开卷，无限刷题）
 
+    const elapsedSeconds = Math.max(0, Math.round((Date.now() - paper.createdAt) / 1000));
     const total = paper.questions.length;
     let correct = 0;
     const perQuestion = paper.questions.map((q, i) => {
@@ -132,13 +138,13 @@ export function createQuizService(db, timerService) {
     });
 
     const allCorrect = correct === total;
-    let result = 'failed';
-    if (allCorrect && paper.mode === 'pass') {
-      setState(db, userId, paper.nodeId, 'passed');
+    let result = practice ? 'practice' : 'failed';
+    if (!practice && allCorrect && paper.mode === 'pass') {
+      setState(db, userId, paper.nodeId, 'passed', { passSeconds: elapsedSeconds });
       result = 'passed';
-    } else if (allCorrect && paper.mode === 'exam') {
+    } else if (!practice && allCorrect && paper.mode === 'exam') {
       // 点亮：记录本卷耗时（秒，至少 1）与点亮时间
-      const passSeconds = Math.max(1, Math.round((Date.now() - paper.createdAt) / 1000));
+      const passSeconds = Math.max(1, elapsedSeconds);
       setState(db, userId, paper.nodeId, 'lit', {
         passSeconds,
         litAt: new Date().toISOString(),
@@ -151,6 +157,7 @@ export function createQuizService(db, timerService) {
       result,
       correct,
       total,
+      elapsedSeconds,
       state: effectiveState(db, userId, paper.nodeId),
       perQuestion,
     };

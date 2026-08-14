@@ -170,6 +170,37 @@ describe('API 集成', () => {
     expect(row.lit_at).toBeTruthy();
   });
 
+  it('刷题练习：不计时、不占时间、不落状态、可反复、返回用时', async () => {
+    const token = await registerUser('user_practice');
+    await agent.post('/api/jump').set(auth(token)).send({ nodeId: 't.a' });
+
+    // 无学习倒计时也能开卷（练习模式不要求计时）
+    const p1 = await agent
+      .post('/api/nodes/t.a/challenge/start')
+      .set(auth(token))
+      .send({ mode: 'practice' });
+    expect(p1.status).toBe(200);
+    expect(p1.body.mode).toBe('practice');
+    expect(p1.body.questions.length).toBeLessThanOrEqual(5);
+    expect(p1.body.questions[0]).not.toHaveProperty('answer');
+
+    // 全对提交：不落状态（保持 open），返回本次用时
+    const r1 = await agent
+      .post(`/api/papers/${p1.body.paperId}/submit`)
+      .set(auth(token))
+      .send({ answers: correctAnswers(p1.body.questions) });
+    expect(r1.body.result).toBe('practice');
+    expect(r1.body.state).toBe('open');
+    expect(typeof r1.body.elapsedSeconds).toBe('number');
+
+    // 可反复刷题：再次开卷成功
+    const p2 = await agent
+      .post('/api/nodes/t.a/challenge/start')
+      .set(auth(token))
+      .send({ mode: 'practice' });
+    expect(p2.status).toBe(200);
+  });
+
   it('判分：答错则 failed，不落状态', async () => {
     const token = await registerUser('user3');
     await agent.post('/api/jump').set(auth(token)).send({ nodeId: 't.a' });

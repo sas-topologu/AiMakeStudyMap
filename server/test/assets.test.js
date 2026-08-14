@@ -99,9 +99,10 @@ describe('媒体资产管线', () => {
   it('升级后的真实卡库导入成功（含 quadratic 的 SVG 资产校验）', () => {
     const dbPath = path.join(tmp, 'real.db');
     const result = runImport({ dir: CARDS_DIR, dbPath });
+    const cardCount = fs.readdirSync(CARDS_DIR).filter((f) => f.endsWith('.json')).length;
     expect(result.ok).toBe(true);
-    expect(result.nodeCount).toBe(27); // 13 数学 + 14 物理
-    expect(result.created).toHaveLength(27);
+    expect(result.nodeCount).toBe(cardCount);
+    expect(result.created).toHaveLength(cardCount);
     expect(result.newVersion).toBe(1);
     // 重复导入幂等
     const again = runImport({ dir: CARDS_DIR, dbPath });
