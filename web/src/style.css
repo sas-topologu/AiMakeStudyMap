@@ -186,6 +186,15 @@ code {
   margin: 0 0 0.8em;
 }
 
+/* 公式行：一式一行居中，与正文段落分隔 */
+.rich p.formula {
+  text-align: center;
+  margin: 0.6em 0;
+  font-family: ui-monospace, Consolas, "Cambria Math", monospace;
+  font-size: 1.04em;
+  line-height: 1.9;
+}
+
 .rich ul,
 .rich ol {
   margin: 0 0 0.8em;

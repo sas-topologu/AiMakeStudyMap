@@ -1,8 +1,16 @@
 // 极简 Markdown 渲染器（无依赖）
 // 顺序约束：必须先提取 [[术语]]，再转义 HTML，再渲染其余语法，最后还原术语为可点击按钮
-// 支持：段落、**加粗**、`行内代码`、- 无序列表、1. 有序列表
+// 支持：段落、**加粗**、`行内代码`、- 无序列表、1. 有序列表、公式行（含数学符号的整行→居中显示）
 const TERM_OPEN = String.fromCharCode(1); // 术语占位符起始
 const TERM_CLOSE = String.fromCharCode(2); // 术语占位符结束
+
+// 公式行判定：整行含数学符号、非叙述句（不以中文标点结尾）、长度适中 → 居中独立显示
+const isFormulaLine = (line) => {
+  const s = line.replace(/\[\[([^\[\]]+)\]\]/g, '').trim();
+  if (!s || s.length > 90) return false;
+  if (/[。；，、]$/.test(s)) return false;
+  return /[=∫∑√±∞≤≥→Δ⇒¹²³⁴⁵⁶⁷⁸⁹⁰×÷∂∏]/i.test(s);
+};
 
 const escapeHtml = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({
@@ -62,6 +70,11 @@ export function renderMarkdown(src) {
       if (list?.tag !== 'ol') flushList();
       list = list ?? { tag: 'ol', items: [] };
       list.items.push(m[1]);
+    } else if (isFormulaLine(line)) {
+      // 公式行：独立居中显示（前后段自动断开）
+      flushPara();
+      flushList();
+      html.push(`<p class="formula">${inline(line)}</p>`);
     } else {
       flushList();
       para.push(line);
