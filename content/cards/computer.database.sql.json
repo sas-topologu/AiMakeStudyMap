@@ -1,0 +1,337 @@
+{
+  "id": "computer.database.sql",
+  "title": "SQL",
+  "subject": "计算机",
+  "category": "自然科学",
+  "credibility": "verified",
+  "difficulty": 4,
+  "summary": "SQL 是操作关系型数据库的声明式查询与操纵语言。本卡从「如何用语言查询数据库」的动机出发，推演出 SELECT 与 WHERE 的投影过滤、ORDER BY 排序、GROUP BY 分组与聚合函数，再经 JOIN 把多张表连成整体查询，最后落到 INSERT/UPDATE/DELETE 与索引优化思想，收束为「增删改查」四类操作，并给出数据分析、后端接口、报表三类典型应用。",
+  "objectives": [
+    "理解 SQL 的声明式本质，能用 SELECT…FROM…WHERE 写出投影与条件过滤查询",
+    "掌握 ORDER BY 排序与 GROUP BY 分组，并理解分组后只能查询分组键与聚合结果的缘由",
+    "掌握 COUNT/SUM/AVG/MAX/MIN 聚合函数、NULL 处理规则及 WHERE 与 HAVING 的过滤时机",
+    "理解 INNER JOIN 与 LEFT JOIN 的语义差异，能根据需求正确选用并写出连接条件",
+    "掌握 INSERT/UPDATE/DELETE 数据操纵语句，理解索引加速查询的基本思想与代价"
+  ],
+  "sections": [
+    {
+      "heading": "动机：如何用语言查询数据库",
+      "tier": "core",
+      "body": "前置知识已经知道：数据存放在[[关系型数据库]]的一张张[[表]]里，[[行]]对应一个个实体，[[列]]对应一种种属性。数据存好了，问题随之而来——程序或人要读取数据时，往往只想要「满足某些条件、只含某些列」的一小部分，而不可能把整张表搬进内存。怎么用语言精确描述这种需求？\n\n答案就是[[SQL]]：一门操作[[关系型数据库]]的[[声明式语言]]。它的哲学是「描述要什么，不描述怎么做」：你只说明要哪些[[列]]、来自哪张[[表]]、满足什么条件，至于如何扫描、如何组织中间结果，全部交给数据库自己决定。\n\n本卡沿一条推演主线展开：先学最核心的[[SELECT]]（查），再学排序、分组与[[聚合函数]]（把查到的数据加工），然后学[[JOIN]]（把多张表连起来查），最后学数据的增、删、改语句与[[索引]]（让查询变快）。"
+    },
+    {
+      "heading": "投影与过滤：SELECT 与 WHERE",
+      "tier": "core",
+      "body": "从最基础的[[查询]]形态出发。要取数据，必须先回答三个问题：取哪些[[列]]？从哪张[[表]]取？只要哪些[[行]]？[[SELECT]] 语句正是按这个顺序组织的：\n\nSELECT 列1, 列2 FROM 表 WHERE 条件;\n\nSELECT 之后的列清单实现[[投影]]，只保留指定的列；FROM 指明来源表；[[WHERE 子句]]之后是[[条件表达式]]，实现[[条件过滤]]——逐行判断，只有结果为真的[[行]]才进入[[结果集]]。\n\n条件由[[比较运算符]]与[[逻辑运算符]]组合而成：比较运算符在 SQL 中写作 =、<>（不等于）、>、<、>=、<=；多个条件用 AND（同时满足）、OR（满足其一）、NOT（取反）连接。注意文本值必须用[[字符串字面量]]，写成单引号形式 '张三'；数字则直接写 15。",
+      "tools": {
+        "heading": "SELECT 查询语法模板",
+        "rows": [
+          "SELECT 列1, 列2, … FROM 表名;  投影：取出指定列的全部行",
+          "SELECT * FROM 表名;  * 表示所有列",
+          "SELECT 列 FROM 表 WHERE 条件;  按条件过滤行",
+          "条件示例：WHERE age >= 15 AND class = '一班'"
+        ]
+      },
+      "examples": [
+        {
+          "id": "ex1",
+          "title": "写一条带条件的投影查询",
+          "problem": "学生表 student 有列 name（姓名）、age（年龄）、class（班级）。写出查询：列出年龄大于 15 且班级为 '一班' 的学生的姓名与年龄。",
+          "steps": [
+            "要取的列是 name 与 age，写在 SELECT 之后：SELECT name, age",
+            "来源表是 student，写在 FROM 之后：FROM student",
+            "两个条件需同时满足，用 AND 连接并写在 WHERE 之后：WHERE age > 15 AND class = '一班'",
+            "拼成完整语句：SELECT name, age FROM student WHERE age > 15 AND class = '一班';"
+          ],
+          "answer": "SELECT name, age FROM student WHERE age > 15 AND class = '一班';"
+        }
+      ],
+      "pitfalls": [
+        "文本值忘记加单引号：class = '一班' 写成 class = 一班 时，一班会被当成列名而报错",
+        "混淆相等写法：SQL 判断相等用 =（而不是 ==），判断不等用 <>（标准写法）"
+      ]
+    },
+    {
+      "heading": "排序与分组：ORDER BY 与 GROUP BY",
+      "tier": "core",
+      "body": "[[查询]]得到的[[结果集]]里，[[行]]的先后顺序本身没有意义——数据库可能按任意顺序返回。要让结果可读、可比较，用[[ORDER BY 子句]]指定排列依据：\n\nSELECT 列 FROM 表 ORDER BY 列 [ASC | DESC];\n\n默认是[[升序]]（ASC，从小到大）；需要从大到小就写 DESC（[[降序]]）。\n\n再看「按类汇总」：把某个[[列]]值相同的[[行]]归并到一起，这个过程叫[[分组]]，对应的语句是[[GROUP BY 子句]]：SELECT class FROM student GROUP BY class; 会为每个班级输出一行。分组之后，每一行不再对应单个学生，而是对应「一组学生」，所以 SELECT 之后只能写两类东西：[[分组键]]与[[聚合函数]]的结果——其余列在一组内无法唯一确定，数据库会拒绝这类查询。这一限制不是麻烦，而是分组的语义必然结果。",
+      "tools": {
+        "heading": "ORDER BY 与 GROUP BY 速查",
+        "rows": [
+          "升序：ORDER BY 列 ASC（ASC 可省略，是默认方向）",
+          "降序：ORDER BY 列 DESC",
+          "多列排序：ORDER BY 列1, 列2（先按列1，值相同再按列2）",
+          "分组：GROUP BY 列（按列值分组，一组输出一行）"
+        ]
+      },
+      "examples": [
+        {
+          "id": "ex2",
+          "title": "排序与分组各写一条",
+          "problem": "student 表含 name、age、class 三列。①写出按年龄从大到小列出所有学生姓名的查询；②写出列出所有不同班级的查询。",
+          "steps": [
+            "①要列 name，来源 student，按 age 降序：SELECT name FROM student ORDER BY age DESC;",
+            "②按 class 分组，每组输出一行：SELECT class FROM student GROUP BY class;",
+            "②的结果就是全部不同班级名——同班学生被归进同一组，天然去重"
+          ],
+          "answer": "① SELECT name FROM student ORDER BY age DESC; ② SELECT class FROM student GROUP BY class;"
+        }
+      ],
+      "pitfalls": [
+        "分组后 SELECT 了非分组键、非聚合的列：SELECT name, class FROM student GROUP BY class 会报错，因为同一班级内 name 并不唯一",
+        "以为 ORDER BY 默认降序：默认是升序 ASC，要降序必须显式写 DESC"
+      ]
+    },
+    {
+      "heading": "聚合函数与过滤时机：COUNT/SUM/AVG 与 HAVING",
+      "tier": "core",
+      "body": "分组之后，每组仍有成千上万[[行]]；要把「一组」压缩成「一行」输出，就需要[[聚合函数]]：它接收一组值，返回一个汇总值。最常用的有：[[COUNT]] 数行数、[[SUM]] 求和、[[AVG]] 求平均、[[MAX]] 与[[MIN]] 取最大最小。例如 SELECT COUNT(*), AVG(age) FROM student; 一次返回学生总数与平均年龄。\n\n聚合与[[NULL]]的相处规则必须记牢：COUNT(*) 数所有行；COUNT(列) 只数该列非 NULL 的行；SUM 与 AVG 自动忽略 NULL。NULL 表示「值缺失」，它不等于 0、也不等于空字符串；若让 NULL 参与普通运算，结果仍是 NULL，所以 SUM 不会把 NULL 当成 0 加进去。\n\n最后是过滤的时机问题：[[WHERE 子句]]在分组之前逐行过滤；针对「组的属性」的过滤（如平均分高于 80）发生在分组之后，必须写进[[HAVING 子句]]。SELECT class, AVG(score) FROM score GROUP BY class HAVING AVG(score) > 80; 若把 AVG(score) > 80 写进 WHERE，数据库会直接报错——因为执行 WHERE 时，还没有任何「组」存在。",
+      "tools": {
+        "heading": "聚合函数与过滤时机",
+        "rows": [
+          "COUNT(*)：统计结果集总行数",
+          "COUNT(列)：统计该列非 NULL 值的个数",
+          "SUM(列)：对非 NULL 值求和；全为 NULL 时结果为 NULL",
+          "AVG(列)：非 NULL 值的算术平均",
+          "MAX(列) / MIN(列)：非 NULL 值的最大 / 最小",
+          "WHERE 过滤行（分组前）；HAVING 过滤组（分组后）"
+        ]
+      },
+      "examples": [
+        {
+          "id": "ex3",
+          "title": "分组聚合后再过滤组",
+          "problem": "成绩表 score(class, score) 记录每名学生的班级与分数。统计每个班级的平均分，并只保留平均分不低于 85 的班级，写出 SQL。",
+          "steps": [
+            "按班级分组：GROUP BY class",
+            "每组求平均分：AVG(score)",
+            "平均分是「组级」条件，须在分组之后过滤，用 HAVING：HAVING AVG(score) >= 85",
+            "完整语句：SELECT class, AVG(score) FROM score GROUP BY class HAVING AVG(score) >= 85;"
+          ],
+          "answer": "SELECT class, AVG(score) FROM score GROUP BY class HAVING AVG(score) >= 85;"
+        }
+      ],
+      "pitfalls": [
+        "用 WHERE 写聚合条件：WHERE AVG(score) > 80 会报错，聚合条件必须放进 HAVING",
+        "把 COUNT(列) 当成 COUNT(*)：该列含 NULL 时两者结果不同，统计「有多少行」应优先用 COUNT(*)",
+        "以为 SUM 把 NULL 当 0：NULL 直接参与运算结果仍是 NULL，SUM/AVG 是跳过 NULL 而不是当 0 处理"
+      ]
+    },
+    {
+      "heading": "多表连接：INNER JOIN 与 LEFT JOIN",
+      "tier": "detail",
+      "body": "真实数据库很少把一切数据塞进一张大表：[[规范化]]会把数据拆分到多张[[表]]，用[[外键]]建立关联，避免同一信息重复存储。于是「查一个完整对象」往往要同时看几张表，这就引出[[JOIN]]——按条件把两表[[行]]配对合并的操作。\n\n配对规则写在[[连接条件]]里（ON 之后）：把左表的每一行与右表的每一行尝试配对，只有满足条件的配对才保留。[[INNER JOIN]]（内连接）只保留两表都配得上的行，相当于取交集；[[LEFT JOIN]]（左外连接）额外保留左表的全部[[行]]，右表配不上时用[[NULL]]补齐。选型依据很简单：只要「两边都有」用 INNER JOIN；要「左表全部 + 右边能配上的」用 LEFT JOIN。\n\n最容易踩的坑是漏写连接条件：不带 ON 的 JOIN 会让两表所有行两两配对，产生[[笛卡尔积]]——结果行数变成两表行数之积，数据成倍膨胀且毫无意义。",
+      "tools": {
+        "heading": "JOIN 写法模板",
+        "rows": [
+          "内连接：SELECT … FROM 左表 INNER JOIN 右表 ON 左表.键 = 右表.外键",
+          "左外连接：SELECT … FROM 左表 LEFT JOIN 右表 ON 左表.键 = 右表.外键",
+          "同名列用 表名.列名 限定来源，如 student.id = score.student_id"
+        ]
+      },
+      "examples": [
+        {
+          "id": "ex4",
+          "title": "内连接与左外连接对照",
+          "problem": "student(id, name) 与 score(student_id, class) 两表，student.id 与 score.student_id 对应。①列出每个学生的姓名及其班级，没有成绩记录的学生不出现；②列出所有学生的姓名与班级，没有成绩记录的学生也要出现。",
+          "steps": [
+            "①只要两边都配得上的行，用 INNER JOIN：SELECT name, class FROM student INNER JOIN score ON student.id = score.student_id;",
+            "②要保留左表全部学生，用 LEFT JOIN：SELECT name, class FROM student LEFT JOIN score ON student.id = score.student_id;",
+            "②中无成绩记录的学生，class 一列会显示 NULL"
+          ],
+          "answer": "① SELECT name, class FROM student INNER JOIN score ON student.id = score.student_id; ② SELECT name, class FROM student LEFT JOIN score ON student.id = score.student_id;"
+        }
+      ],
+      "pitfalls": [
+        "JOIN 忘记写 ON 条件产生笛卡尔积：不带 ON 的 JOIN 会把两表 m×n 行全部配对，结果行数暴涨",
+        "连接条件写错键：应按「外键 = 被引用表主键」的方向配对，方向写反或键选错会查不出数据"
+      ]
+    },
+    {
+      "heading": "数据操纵、索引与结论应用",
+      "tier": "extended",
+      "body": "查询不会改变数据本身；要真正改变数据，SQL 提供了三条[[数据操纵语言]]语句：[[INSERT]] 向[[表]]插入新[[行]]，[[UPDATE]] 修改已有行的某些[[列]]，[[DELETE]] 删除整[[行]]。它们的共性在于「先定位、再作用」：INSERT 用 VALUES 给出新行的各列取值；UPDATE 与 DELETE 几乎总带 [[WHERE 子句]]限定范围——不写 WHERE 的 UPDATE 会改动全表所有行，不写 WHERE 的 DELETE 会清空整张表，这是数据库操作中最著名的一类事故。多条写操作还常常需要「一起成功或一起失败」，比如转账的扣款与入账必须同时发生；[[事务]]把一组语句捆绑执行，任一步失败则整体回滚，保证数据不出现半途状态。\n\n数据变大后，逐行检查的[[全表扫描]]太慢：在百万行里找一行要比较一百万次。数据库为此提供[[索引]]——一种像书末目录一样的辅助结构，把某[[列]]的值按序组织，使查找从「逐行比对」变为「按序定位」，耗时大幅下降；代价是每次写入都要同步维护索引，所以索引不是越多越好，只为频繁出现在 WHERE 或 JOIN 条件里的[[列]]建立。用[[执行计划]]（EXPLAIN）可以查看一条[[查询]]具体怎么执行，优化思路通常围绕「让查询少扫描、尽量走索引」展开。\n\n回看整条主线：SELECT 负责[[查询]]，INSERT/UPDATE/DELETE 负责增、改、删——SQL 的全部功能可以收束为一句话：SQL 的核心就是「增删改查」。掌握这个骨架后，SQL 的能力体现在三类典型应用上：[[数据分析]]（分组聚合出统计结果）、[[后端接口]]（程序通过 SQL 读写业务数据）、[[报表]]（把查询结果整理成表格与图表呈现）。",
+      "tools": {
+        "heading": "SQL 语句家族（增删改查）",
+        "rows": [
+          "查：SELECT 列 FROM 表 [WHERE 条件] [GROUP BY 列] [HAVING 条件] [ORDER BY 列]",
+          "增：INSERT INTO 表(列1, 列2) VALUES (值1, 值2)",
+          "改：UPDATE 表 SET 列 = 新值 WHERE 条件",
+          "删：DELETE FROM 表 WHERE 条件",
+          "建索引：CREATE INDEX 索引名 ON 表(列)"
+        ]
+      },
+      "examples": [
+        {
+          "id": "ex5",
+          "title": "增删改各写一条",
+          "problem": "student 表有 name、age、class 列。①把名为 '王五' 的学生年龄改为 16；②删除班级为 '三班' 的所有学生；③插入一名新学生（姓名 '赵六'，年龄 14，班级 '一班'）。",
+          "steps": [
+            "①先定位再修改：UPDATE student SET age = 16 WHERE name = '王五';",
+            "②先定位再删除：DELETE FROM student WHERE class = '三班';",
+            "③插入新行：INSERT INTO student(name, age, class) VALUES ('赵六', 14, '一班');"
+          ],
+          "answer": "① UPDATE student SET age = 16 WHERE name = '王五'; ② DELETE FROM student WHERE class = '三班'; ③ INSERT INTO student(name, age, class) VALUES ('赵六', 14, '一班');"
+        }
+      ],
+      "pitfalls": [
+        "UPDATE/DELETE 忘写 WHERE：UPDATE student SET age = 16 会把全表年龄都改成 16，DELETE 同理会清空全表",
+        "把 DELETE 与 DROP 混淆：DELETE 删数据行，DROP TABLE 删整张表的结构",
+        "认为索引越多越好：索引会拖慢写入并占用空间，只为高频查询条件建索引"
+      ]
+    }
+  ],
+  "media": [],
+  "examples": [],
+  "pitfalls": [],
+  "emblems": [
+    { "type": "formula", "content": "SELECT 列 FROM 表 WHERE 条件", "caption": "查询基本形态" },
+    { "type": "formula", "content": "SELECT 分组键, COUNT(*) FROM 表 GROUP BY 分组键", "caption": "分组聚合" },
+    { "type": "formula", "content": "SELECT … FROM 左表 LEFT JOIN 右表 ON 连接条件", "caption": "左外连接" }
+  ],
+  "terms": {
+    "关系型数据库": "以二维[[表]]组织数据、利用键在表之间建立关联的数据库类型。",
+    "表": "二维数据容器，由[[行]]与[[列]]构成。",
+    "行": "表中的一个数据条目，对应一个实体实例。",
+    "列": "表中一种属性的数据集合，同一列内的值含义相同。",
+    "SQL": "结构化查询语言，操作[[关系型数据库]]的标准语言，包含查询与数据操纵等语句。",
+    "声明式语言": "只描述「要什么结果」、不指定「如何实现」的语言；SQL 属于此类，执行细节由数据库决定。",
+    "查询": "向数据库请求数据的过程。",
+    "SELECT": "SQL 中执行[[查询]]的语句，后跟要取出的[[列]]清单。",
+    "投影": "只选取指定[[列]]、丢弃其余列的操作，对应 SELECT 之后的列清单。",
+    "WHERE 子句": "SELECT 语句中用来限定保留哪些[[行]]的部分，写法为 WHERE 条件。",
+    "条件表达式": "求值结果为真或假的表达式，由[[比较运算符]]与[[逻辑运算符]]组合而成。",
+    "条件过滤": "按[[条件表达式]]逐行检查、只保留结果为真的[[行]]的过程。",
+    "结果集": "一次[[查询]]返回的、按[[行]]和[[列]]组织的数据集合。",
+    "比较运算符": "比较两个值大小或相等的符号，如 =、<>、>、<、>=、<=。",
+    "逻辑运算符": "组合条件的符号：AND（且）、OR（或）、NOT（非）。",
+    "字符串字面量": "SQL 中用单引号括起来的文本值，如 '张三'。",
+    "ORDER BY 子句": "SELECT 语句中用于规定结果排序的[[列]]与方向（[[升序]]或[[降序]]）的部分。",
+    "升序": "从值小到大排列（ASC）。",
+    "降序": "从值大到小排列（DESC）。",
+    "分组": "把[[列]]值相同的[[行]]归并为一组的过程，配合[[聚合函数]]产生每组一行的小结。",
+    "GROUP BY 子句": "SELECT 语句中用来指定[[分组]]依据[[列]]的部分，写法为 GROUP BY 列。",
+    "分组键": "GROUP BY 子句中用于分组的[[列]]，分组后 SELECT 只能出现分组键与[[聚合函数]]的结果。",
+    "聚合函数": "接收一组值、返回单个汇总值的函数，如 COUNT、SUM、AVG。",
+    "COUNT": "统计[[行]]数或非 [[NULL]] 值个数的[[聚合函数]]。",
+    "SUM": "对一组数值求和的[[聚合函数]]，忽略 [[NULL]]。",
+    "AVG": "对一组数值求算术平均的[[聚合函数]]，忽略 [[NULL]]。",
+    "MAX": "取一组值中最大值的[[聚合函数]]。",
+    "MIN": "取一组值中最小值的[[聚合函数]]。",
+    "NULL": "表示「值缺失」的特殊值，不等于 0、也不等于空字符串。",
+    "HAVING 子句": "在[[分组]]之后过滤组的条件部分，与 [[WHERE 子句]]（分组前过滤[[行]]）时机不同。",
+    "规范化": "为消除数据冗余、保证一致性而把数据拆分到多张[[表]]的设计过程。",
+    "外键": "本表中引用另一表[[主键]]的[[列]]，用于建立表间关联。",
+    "主键": "表中能唯一标识每一[[行]]的[[列]]或列组合，其值不重复且不为 [[NULL]]。",
+    "JOIN": "把多张[[表]]按条件合并[[查询]]的操作。",
+    "连接条件": "[[JOIN]] 中 ON 之后的[[条件表达式]]，决定两表的[[行]]如何配对。",
+    "INNER JOIN": "只保留两表都满足[[连接条件]]的[[行]]的连接方式，结果相当于两表交集。",
+    "LEFT JOIN": "保留左表全部[[行]]、右表无匹配时用 [[NULL]] 补齐的连接方式。",
+    "笛卡尔积": "两表所有[[行]]两两组合得到的全部配对结果，行数为两表行数之积。",
+    "数据操纵语言": "SQL 中改变数据的三类语句 [[INSERT]]、[[UPDATE]]、[[DELETE]] 的统称。",
+    "INSERT": "向[[表]]插入新[[行]]的语句。",
+    "UPDATE": "修改[[表]]中已有[[行]]的指定[[列]]的语句。",
+    "DELETE": "删除[[表]]中整[[行]]的语句。",
+    "事务": "一组要么全部成功、要么全部回滚的数据库操作，保证数据不出现半途状态。",
+    "全表扫描": "从第一[[行]]到最后一行逐行检查整张[[表]]的查找方式，数据量大时很慢。",
+    "索引": "为加速[[查询]]而建立的辅助结构，把某[[列]]的值按序组织，使查找从逐行比较变为按序定位；代价是写入时需同步维护。",
+    "执行计划": "数据库为一条[[查询]]生成的具体执行方案，可用 EXPLAIN 查看。",
+    "数据分析": "从数据中提取规律与结论的过程，SQL 的[[分组]]与[[聚合函数]]是常用手段。",
+    "后端接口": "服务端程序对外提供数据读写能力的入口，常通过 SQL 访问数据库。",
+    "报表": "把[[查询]]结果整理成结构化表格或图表呈现的产物。"
+  },
+  "relations": {
+    "prerequisites": ["computer.database.basics"],
+    "related": []
+  },
+  "questionBank": [
+    {
+      "id": "q1",
+      "type": "choice",
+      "stem": "SQL 中用于查询数据的语句是",
+      "options": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+      "answer": 0,
+      "explanation": "SELECT 负责查询；INSERT/UPDATE/DELETE 分别负责插入、修改、删除。",
+      "difficulty": 1
+    },
+    {
+      "id": "q2",
+      "type": "choice",
+      "stem": "要从 student 表中只取出 name 与 age 两列，正确的语句是",
+      "options": ["SELECT * FROM student;", "SELECT name, age FROM student;", "SELECT FROM student name age;", "GET name, age FROM student;"],
+      "answer": 1,
+      "explanation": "SELECT 之后跟列清单实现投影，只保留指定列；SELECT * 会取所有列。",
+      "difficulty": 1
+    },
+    {
+      "id": "q3",
+      "type": "fill",
+      "stem": "SQL 中文本值必须用 ____ 括起来（如 '张三'）",
+      "answer": "单引号",
+      "explanation": "字符串字面量写成单引号形式；不加引号会被当作列名而报错。",
+      "difficulty": 2
+    },
+    {
+      "id": "q4",
+      "type": "choice",
+      "stem": "统计 student 表一共有多少行，应使用",
+      "options": ["SELECT SUM(*) FROM student;", "SELECT AVG(*) FROM student;", "SELECT COUNT(*) FROM student;", "SELECT MAX(*) FROM student;"],
+      "answer": 2,
+      "explanation": "COUNT(*) 统计总行数；SUM/AVG/MAX 需要作用于数值列而不是 *。",
+      "difficulty": 2
+    },
+    {
+      "id": "q5",
+      "type": "choice",
+      "stem": "若某列 score 中含有 NULL，则 SELECT AVG(score) 的结果是",
+      "options": ["把 NULL 当 0 求平均", "忽略 NULL 后求平均", "直接报错", "返回 NULL 的个数"],
+      "answer": 1,
+      "explanation": "AVG/SUM 等聚合函数自动忽略 NULL，只对非 NULL 值求平均。",
+      "difficulty": 3
+    },
+    {
+      "id": "q6",
+      "type": "fill",
+      "stem": "统计每个班级的人数并按人数从多到少排序，补全语句：SELECT class, COUNT(*) FROM student GROUP BY class ORDER BY COUNT(*) ____",
+      "answer": "DESC",
+      "explanation": "从多到少是降序，必须显式写 DESC（默认升序 ASC）。",
+      "difficulty": 3
+    },
+    {
+      "id": "q7",
+      "type": "choice",
+      "stem": "关于 WHERE 与 HAVING 的过滤时机，正确的是",
+      "options": ["WHERE 在分组后过滤组，HAVING 在分组前过滤行", "两者等价，可以互换", "WHERE 在分组前过滤行，HAVING 在分组后过滤组", "HAVING 只能用于多表查询"],
+      "answer": 2,
+      "explanation": "WHERE 先于分组逐行过滤；HAVING 针对分组后的组过滤（如平均分条件）。",
+      "difficulty": 4
+    },
+    {
+      "id": "q8",
+      "type": "choice",
+      "stem": "LEFT JOIN 与 INNER JOIN 的区别是",
+      "options": ["两者结果完全相同", "INNER JOIN 保留左表全部行，右表无匹配补 NULL", "LEFT JOIN 只保留两表都匹配的行", "LEFT JOIN 保留左表全部行，右表无匹配补 NULL；INNER JOIN 只保留两表都匹配的行"],
+      "answer": 3,
+      "explanation": "INNER JOIN 取两表交集；LEFT JOIN 以左表为全集，右表无匹配时补 NULL。",
+      "difficulty": 4
+    },
+    {
+      "id": "q9",
+      "type": "choice",
+      "stem": "对一张 100 万行的表，为 WHERE 条件中的列建立索引后，最主要的收益是",
+      "options": ["写入速度变快", "查找从全表扫描变为按序定位，速度大幅提升", "不再需要主键", "查询结果自动按该列排序"],
+      "answer": 1,
+      "explanation": "索引像目录一样把列值按序组织，查找从逐行扫描变为按序定位；代价是每次写入要维护索引。",
+      "difficulty": 5
+    },
+    {
+      "id": "q10",
+      "type": "fill",
+      "stem": "要删除表 student 中的全部行但保留表结构，应执行 DELETE FROM student（不带 ____ 子句）",
+      "answer": "WHERE",
+      "explanation": "不写 WHERE 的 DELETE 作用于所有行，会清空整张表的数据；DROP TABLE 才删除表结构。",
+      "difficulty": 5
+    }
+  ],
+  "version": 1
+}
