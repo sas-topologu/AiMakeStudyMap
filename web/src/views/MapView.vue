@@ -68,6 +68,7 @@ import { useStarmapStore } from '../stores/starmap.js';
 import { useUiStore } from '../stores/ui.js';
 import { useNavStore } from '../stores/navigation.js';
 import { useFxSettings } from '../composables/useFxSettings.js';
+import { useDevSettings } from '../composables/useDevSettings.js';
 import { MacroRenderer, LOD, worldWeights } from '../starmap/macroRenderer.js';
 import { layoutWorld, makeSyntheticGraph } from '../starmap/macroLayout.js';
 
@@ -78,6 +79,7 @@ const starmap = useStarmapStore();
 const ui = useUiStore();
 const nav = useNavStore();
 const fx = useFxSettings();
+const dev = useDevSettings();
 
 const wrap = ref(null);
 const cv = ref(null);
@@ -447,6 +449,7 @@ function installStressHook() {
 
 onMounted(() => {
   renderer = new MacroRenderer(cv.value);
+  renderer.fontScale = dev.settings.macroFont;
   ro = new ResizeObserver(resize);
   ro.observe(wrap.value);
   resize();
@@ -454,6 +457,16 @@ onMounted(() => {
   installStressHook();
   document.addEventListener('visibilitychange', onVisibility);
 });
+
+// 开发者模式：宏观字号变化即时生效
+watch(
+  () => dev.settings.macroFont,
+  (v) => {
+    if (!renderer) return;
+    renderer.fontScale = v;
+    renderer.render();
+  },
+);
 
 onBeforeUnmount(() => {
   ro?.disconnect();

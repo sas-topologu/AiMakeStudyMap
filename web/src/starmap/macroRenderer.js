@@ -15,7 +15,7 @@
 // 阶段 5 预留：setHighlight({ nodes, edges, subjects }) 叠加"路线高亮"层——
 // 节点档绘制时叠加描边加粗的高亮边与节点外环，星系层给涉及学科加金色外环。
 import { CanvasStage, STATE_STYLE } from './canvasBase.js';
-import { bucketize, bucketKeyOf, mulberry32, hashStr } from './macroLayout.js';
+import { bucketize, bucketKeyOf, mulberry32, hashStr, longestChain } from './macroLayout.js';
 
 export const LOD = {
   GALAXY: 0.32, // scale 低于此 → 星系星云档（全景）
@@ -92,6 +92,12 @@ export class MacroRenderer extends CanvasStage {
     // 叠加层：导航路线（金色，nodes/edges/subjects）与热门路径（青色）
     this.highlight = { nodes: new Set(), edges: new Set(), subjects: new Set() };
     this.hotEdges = new Set();
+    this.fontScale = 1; // 宏观视图字号倍率（开发者模式注入）
+  }
+
+  // 屏幕恒定字号（受 fontScale 缩放）
+  _font(px, weight = 400) {
+    return `${weight} ${Math.round(px * this.fontScale)}px system-ui, "PingFang SC", "Microsoft YaHei", sans-serif`;
   }
 
   // ---- 数据 ----
@@ -102,6 +108,17 @@ export class MacroRenderer extends CanvasStage {
       ...e,
       cross: (nodesById[e.from]?.subject ?? '') !== (nodesById[e.to]?.subject ?? ''),
     }));
+    // 主干链（标识先于星座）：每个学科的最长 prerequisite 链作为标签骨架
+    const subjectBackbone = new Map();
+    const backboneIds = new Set();
+    for (const g of galaxies) {
+      const chain = longestChain(
+        nodes.filter((n) => (n.subject ?? '未分类') === g.subject),
+        edgesMeta.filter((e) => e.type === 'prerequisite' && !e.cross),
+      );
+      subjectBackbone.set(g.subject, chain);
+      for (const id of chain) backboneIds.add(id);
+    }
     this.data = {
       galaxies: galaxies.map((g) => {
         const rand = mulberry32(hashStr(g.subject));
@@ -126,6 +143,8 @@ export class MacroRenderer extends CanvasStage {
       pos,
       visibleRelated: collapseRelated(edgesMeta), // 相关线截断（每节点最多 RELATED_MAX_NODE 条）
       crossPairs: crossSubjectPairs(edgesMeta, nodesById), // 星系对之间跨学科联系（星空连成一片）
+      subjectBackbone, // Map<subject, [id...]> 主干链（学习顺序）
+      backboneIds, // Set<id> 主干节点（中档标题标注）
     };
     this.hoverTarget = null;
     this.frameClusters = [];
@@ -279,13 +298,26 @@ export class MacroRenderer extends CanvasStage {
 
       // 学科名 + 节点数：择地位（布局时选在学科外围），屏幕恒定字号、始终水平
       this.drawScreenText(g.subject, lp.x, lp.y, {
-        font: '600 15px system-ui, "PingFang SC", "Microsoft YaHei", sans-serif',
+        font: this._font(15, 600),
         fill: `rgba(226,232,255,${(hot ? 1 : 0.92) * alpha})`,
       });
       this.drawScreenText(`${g.count} 节点`, lp.x, lp.y + 24 / camera.scale, {
-        font: '11px system-ui, sans-serif',
+        font: this._font(11),
         fill: `rgba(139,149,184,${0.88 * alpha})`,
       });
+
+      // 标识先于星座：星系层即给出主干主题标签（最多 3 个，省略号提示更多）
+      const chain = this.data.subjectBackbone.get(g.subject) ?? [];
+      if (chain.length) {
+        const topics = chain
+          .slice(0, 3)
+          .map((id) => this.data.nodesById[id]?.title ?? id)
+          .join(' · ');
+        this.drawScreenText(topics, lp.x, lp.y + 46 / camera.scale, {
+          font: this._font(10),
+          fill: `rgba(158,176,228,${0.72 * alpha})`,
+        });
+      }
     }
   }
 
@@ -369,7 +401,7 @@ export class MacroRenderer extends CanvasStage {
 
       // 聚合数（屏幕恒定字号、始终水平）
       this.drawScreenText(String(b.count), b.cx, b.cy, {
-        font: '600 12px system-ui, sans-serif',
+        font: this._font(12, 600),
         fill: `rgba(255,255,255,${0.9 * alpha})`,
       });
 
@@ -413,6 +445,20 @@ export class MacroRenderer extends CanvasStage {
       ctx.fill();
     }
     ctx.restore();
+
+    // 标识先于星座：中档（离散小点阶段）即标注主干节点标题，星座未完全解体时即可读
+    for (const it of this._visibleNodes(rect)) {
+      if (!this.data.backboneIds.has(it.id)) continue;
+      const node = this.data.nodesById[it.id];
+      this.drawScreenText(node?.title ?? it.id, it.x, it.y + 7 / camera.scale, {
+        font: this._font(11),
+        fill:
+          node?.state === 'dim'
+            ? `rgba(170,180,210,${0.6 * alpha})`
+            : `rgba(205,220,255,${0.78 * alpha})`,
+        baseline: 'top',
+      });
+    }
 
     this._drawHighlight(alpha);
     this._drawHotEdges(alpha);
@@ -483,7 +529,7 @@ export class MacroRenderer extends CanvasStage {
     for (const it of visible) {
       const node = this.data.nodesById[it.id];
       this.drawScreenText(node?.title ?? it.id, it.x, it.y + 9 / camera.scale, {
-        font: '11px system-ui, "PingFang SC", "Microsoft YaHei", sans-serif',
+        font: this._font(11),
         fill:
           node?.state === 'dim'
             ? `rgba(170,180,210,${0.6 * alpha})`

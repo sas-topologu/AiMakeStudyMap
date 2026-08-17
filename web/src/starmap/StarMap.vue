@@ -6,7 +6,7 @@
     <canvas
       ref="cv"
       class="starmap-canvas"
-      :class="{ grabbing: isPanning, pointer: hoverNode }"
+      :class="{ pointer: hoverNode }"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
@@ -31,6 +31,7 @@ import { ParticleSystem } from './particles.js';
 import { vectorizeEmblem } from './emblemVector.js';
 import { pickEmblemOffsets } from './emblemOffsets.js';
 import { useFxSettings } from '../composables/useFxSettings.js';
+import { useDevSettings } from '../composables/useDevSettings.js';
 import { useStarmapStore } from '../stores/starmap.js';
 
 const props = defineProps({
@@ -43,6 +44,9 @@ const props = defineProps({
   hotEdges: { type: Array, default: () => [] },
   // 连线风格：legacy / skilltree / depth / trunk（见 renderer.js EDGE_MODES）
   edgeMode: { type: String, default: 'skilltree' },
+  // 导航「下一节点 / 上一节点」：钉在上下中轴，让后续指向导航终点
+  navNextId: { type: String, default: null },
+  navPrevId: { type: String, default: null },
 });
 const emit = defineEmits(['recenter', 'open']);
 
@@ -50,6 +54,7 @@ const STATE_LABEL = { dim: '暗淡', open: '开放', passed: '通关', lit: '点
 const stateLabel = (s) => STATE_LABEL[s] ?? s;
 
 const fx = useFxSettings();
+const dev = useDevSettings();
 
 const wrap = ref(null);
 const cv = ref(null);
@@ -59,7 +64,6 @@ let dpr = window.devicePixelRatio || 1;
 
 const hoverId = ref(null);
 const tip = ref({ x: 0, y: 0 });
-const isPanning = ref(false);
 
 const nodesById = computed(() => Object.fromEntries(props.nodes.map((n) => [n.id, n])));
 const hoverNode = computed(() => (hoverId.value ? nodesById.value[hoverId.value] : null));
@@ -67,7 +71,17 @@ const hoverNode = computed(() => (hoverId.value ? nodesById.value[hoverId.value]
 function ringStep() {
   const w = wrap.value?.clientWidth || 800;
   const h = wrap.value?.clientHeight || 600;
-  return Math.max(110, Math.min(w, h) / 2 / 3.1);
+  return Math.max(110, Math.min(w, h) / 2 / 3.1) * dev.settings.ringStep;
+}
+
+// 把开发者模式可调参数应用到渲染器
+function applyDevSettings() {
+  if (!renderer) return;
+  renderer.meteorSpeed = dev.settings.meteorSpeed;
+  renderer.meteorTail = dev.settings.meteorTail;
+  renderer.nodeScale = dev.settings.nodeSize;
+  renderer.centerFontScale = dev.settings.centerFont;
+  renderer.edgeScale = dev.settings.edgeWidth;
 }
 
 // ---- 切换动画状态 ----
@@ -92,12 +106,15 @@ const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 /
 
 function rebuild({ fit = false } = {}) {
   if (!renderer || !props.centerId) return;
+  applyDevSettings();
   const layout = computeLayout({
     centerId: props.centerId,
     nodes: props.nodes,
     edges: props.edges,
     ringStep: ringStep(),
+    nav: { nextId: props.navNextId, prevId: props.navPrevId },
   });
+  renderer.navNextId = props.navNextId;
   const prevPos = currentDisplayedPos();
   const prevCenter = renderer.centerId;
   const camTarget = computeFitCamera();
@@ -121,6 +138,7 @@ function rebuild({ fit = false } = {}) {
   renderer.setHighlight(props.highlight);
   renderer.setHotEdges(props.hotEdges);
   if (fit) Object.assign(renderer.camera, camTarget);
+  syncMeteorLoop();
   renderer.render();
 }
 
@@ -141,6 +159,7 @@ function startTransition(plan, layout, camTarget) {
   renderer.setHotEdges(props.hotEdges);
   renderer.animEdges = unionEdges;
   applySimToRenderer();
+  syncMeteorLoop();
 
   // 相机并行过渡（easeInOutCubic，与弹簧同时完成）
   const camFrom = { ...renderer.camera };
@@ -189,6 +208,7 @@ function finishTransition() {
   renderer.animPos = null;
   renderer.animAlpha = null;
   renderer.animEdges = null;
+  syncMeteorLoop();
   renderer.render();
 }
 
@@ -303,6 +323,42 @@ function onVisibility() {
   syncPsLoop();
   pulseLast = performance.now();
   syncPulseLoop();
+  meteorLast = performance.now();
+  syncMeteorLoop();
+}
+
+// ---- 相关流星渲染循环（~30fps 节流，reduced-motion/隐藏/无流星即停）----
+let meteorRaf = null;
+let meteorLast = 0;
+
+function meteorShouldRun() {
+  return (renderer?.meteors?.size ?? 0) > 0 && !fx.reducedMotion.value && !document.hidden;
+}
+
+function syncMeteorLoop() {
+  if (meteorShouldRun() && !meteorRaf) {
+    meteorLast = performance.now();
+    meteorRaf = requestAnimationFrame(meteorTick);
+  } else if (!meteorShouldRun() && meteorRaf) {
+    cancelAnimationFrame(meteorRaf);
+    meteorRaf = null;
+    if (renderer) renderer.render(); // 停循环补一帧（流星回到当前位置静止）
+  }
+}
+
+function meteorTick(now) {
+  meteorRaf = null;
+  if (!meteorShouldRun()) {
+    if (renderer) renderer.render();
+    return;
+  }
+  if (now - meteorLast >= 33) {
+    const dt = (now - meteorLast) / 1000;
+    meteorLast = now;
+    renderer.tickMeteors(dt);
+    renderer.render();
+  }
+  meteorRaf = requestAnimationFrame(meteorTick);
 }
 
 // ---- 技能树呼吸脉冲渲染循环（仅 skilltree 模式，~20fps 节流）----
@@ -363,7 +419,6 @@ function onPointerDown(e) {
   }
   moved = false;
   longPressed = false;
-  isPanning.value = false;
   downInfo = { x: e.offsetX, y: e.offsetY, time: Date.now(), hit: renderer.hitTest(e.offsetX, e.offsetY) };
   // 长按 → 打开详情
   clearPress();
@@ -388,24 +443,17 @@ function onPointerMove(e) {
     return;
   }
   if (prev) {
+    // 当前节点固定在屏幕中心，不可拖拽平移：仅记录是否移动以区分「点击」与「拖动」
     pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
-    const dx = e.offsetX - prev.x;
-    const dy = e.offsetY - prev.y;
     if (downInfo && Math.hypot(e.offsetX - downInfo.x, e.offsetY - downInfo.y) > 5) {
       moved = true;
       clearPress();
-      isPanning.value = true;
-    }
-    if (moved) {
-      renderer.camera.x -= dx / renderer.camera.scale;
-      renderer.camera.y -= dy / renderer.camera.scale;
-      renderer.render();
     }
     return;
   }
   // 无按键：hover tooltip
   const hit = renderer.hitTest(e.offsetX, e.offsetY);
-  const id = hit?.type === 'node' ? hit.id : hit?.type === 'badge' ? hit.id : null;
+  const id = hit?.type === 'node' ? hit.id : null;
   if (id !== hoverId.value) {
     hoverId.value = id;
     renderer.hoverId = hit?.type === 'node' ? id : null;
@@ -419,16 +467,12 @@ function onPointerUp(e) {
   const wasPinch = pointers.size > 1;
   pointers.delete(e.pointerId);
   if (pointers.size < 2) pinch = null;
-  isPanning.value = false;
   if (!downInfo || wasPinch) return;
   const click = !moved && Date.now() - downInfo.time < 500 && !longPressed;
   downInfo = null;
   if (!click) return;
   const hit = renderer.hitTest(e.offsetX, e.offsetY);
-  if (hit?.type === 'badge') {
-    renderer.toggleRelated(hit.id);
-    renderer.render();
-  } else if (hit?.type === 'node' && hit.id !== props.centerId) {
+  if (hit?.type === 'node' && hit.id !== props.centerId) {
     emit('recenter', hit.id);
   }
 }
@@ -450,12 +494,10 @@ function onWheel(e) {
   stopTransition(); // 滚轮缩放打断动画
   const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
   const cam = renderer.camera;
-  const next = Math.min(3, Math.max(0.2, cam.scale * factor));
-  // 以光标为锚点缩放
-  const w = renderer.toWorld(e.offsetX, e.offsetY);
-  cam.scale = next;
-  cam.x = w.x - (e.offsetX - renderer.width / 2) / next;
-  cam.y = w.y - (e.offsetY - renderer.height / 2) / next;
+  // 以屏幕中心（当前节点）为锚点缩放，中心节点始终固定在中间
+  cam.scale = Math.min(3, Math.max(0.2, cam.scale * factor));
+  cam.x = 0;
+  cam.y = 0;
   renderer.render();
 }
 
@@ -478,11 +520,13 @@ onBeforeUnmount(() => {
   psRaf = null;
   if (pulseRaf) cancelAnimationFrame(pulseRaf);
   pulseRaf = null;
+  if (meteorRaf) cancelAnimationFrame(meteorRaf);
+  meteorRaf = null;
   document.removeEventListener('visibilitychange', onVisibility);
 });
 
 watch(
-  () => [props.nodes, props.edges, props.centerId],
+  () => [props.nodes, props.edges, props.centerId, props.navNextId, props.navPrevId],
   () => rebuild({ fit: true }),
   { deep: true },
 );
@@ -519,10 +563,33 @@ watch(
   { deep: true },
 );
 
+// 开发者模式滑扭：环带间距变化需重排；其余参数只重应用+重绘（避免重置流星动画）
+watch(
+  () => dev.settings.ringStep,
+  () => {
+    if (!renderer) return;
+    rebuild({ fit: false });
+  },
+);
+watch(
+  () => [
+    dev.settings.meteorSpeed,
+    dev.settings.meteorTail,
+    dev.settings.nodeSize,
+    dev.settings.centerFont,
+    dev.settings.edgeWidth,
+  ],
+  () => {
+    if (!renderer) return;
+    applyDevSettings();
+    renderer.render();
+  },
+);
+
 // 暴露给父组件：图例配色含义
 defineExpose({ EDGE_LEGEND: [
   { kind: 'prerequisite', label: '前置依赖', color: 'rgba(96,165,250,0.8)', dash: false },
   { kind: 'successor', label: '后续方向', color: 'rgba(251,191,106,0.8)', dash: false },
-  { kind: 'related', label: '相关拓展', color: 'rgba(196,141,255,0.8)', dash: true },
+  { kind: 'related', label: '相关拓展（流星）', color: 'rgba(210,180,255,0.85)', dash: false },
 ] });
 </script>

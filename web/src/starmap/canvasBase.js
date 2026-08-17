@@ -59,6 +59,7 @@ export class CanvasStage {
     this.camera = { x: 0, y: 0, scale: 1, rot: 0 }; // x/y：屏幕中心对应的世界坐标；rot：视口旋转角（弧度）
     this.width = 0;
     this.height = 0;
+    this.dpr = 1;
     this.stars = [];
     this._makeStars();
   }
@@ -66,19 +67,22 @@ export class CanvasStage {
   resize(w, h, dpr) {
     this.width = w;
     this.height = h;
+    this.dpr = dpr || 1;
     this.canvas.width = Math.round(w * dpr);
     this.canvas.height = Math.round(h * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  // 屏幕恒定文字：位置给世界坐标，自动转屏幕空间并反向旋转——
-  // 视口旋转时文字始终保持水平，字号恒定为屏幕像素（不随缩放/旋转变化）
+  // 屏幕恒定文字：位置给世界坐标，自动转屏幕空间——
+  // 视口旋转时文字始终保持水平（toScreen 已含旋转位置，此处不再反向旋转），字号恒定为屏幕像素。
+  // 关键：先复位到屏幕空间（仅保留 dpr 缩放），否则在世界变换里 translate 会二次缩放/偏移，
+  // 导致放大时字号膨胀、文字跑出视口（缩小看极小、放大后消失）；再旋转会随视口一起转。
   drawScreenText(txt, wx, wy, { font, fill, align = 'center', baseline = 'middle' } = {}) {
     const p = this.toScreen(wx, wy);
-    const { ctx, camera } = this;
+    const { ctx } = this;
     ctx.save();
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.translate(p.x, p.y);
-    if (camera.rot) ctx.rotate(-camera.rot);
     ctx.font = font;
     ctx.fillStyle = fill;
     ctx.textAlign = align;

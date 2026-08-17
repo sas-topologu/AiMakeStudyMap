@@ -1,8 +1,18 @@
 // Canvas 2D 星图渲染器（自研，无图库依赖）—— 中心视图
-// 职责：对角线与环带参考线 / 连线（前置·后续·相关三样式）/ 星点（四态亮度+可信度描边）
-//      相关线折叠（>6 条默认画 5 条，其余折成「+N」标记，点击展开/再折叠）/ 命中检测
+// 职责：对角线与环带参考线 / 连线（仅前置·后续主干；相关不再连线）/ 星点（四态亮度+可信度描边）
+//      相关节点以「流星」形式在左右区划过（尾部渐变淡出、速度适中）/ 导航方向箭头 / 命中检测
 // 相机、星空背景、星点绘制等通用能力在 canvasBase.js（宏观视图共用）。
-import { CanvasStage, drawSparkleStar } from './canvasBase.js';
+import { CanvasStage, drawSparkleStar, STATE_STYLE } from './canvasBase.js';
+import { hashStr, mulberry32 } from './macroLayout.js';
+
+const DEG = Math.PI / 180;
+
+// 流星淡入淡出包络：两端淡出（屏幕外），中段满亮（屏幕内）
+const fadeEnvelope = (t) => {
+  if (t < 0.1) return t / 0.1;
+  if (t > 0.9) return (1 - t) / 0.1;
+  return 1;
+};
 
 // 连线风格：legacy 原版全亮 / skilltree 按学习状态分档（技能树）/ depth 按环带深度衰减 / trunk 只画主干
 // UI 切换入口在 HomeView「连线风格」面板，模式在 renderer 内保存，setData 不清除
@@ -12,14 +22,6 @@ export const EDGE_MODES = [
   { key: 'depth', label: '深度' },
   { key: 'trunk', label: '主干' },
 ];
-
-// 相关线折叠参数（每节点相关线条数超过 max 时只画 visible 条，其余折成「+N」）
-const COLLAPSE_CFG = {
-  legacy: { max: 6, visible: 5 },
-  skilltree: { max: 4, visible: 3 },
-  depth: { max: 6, visible: 4 },
-  trunk: { max: 0, visible: 0 },
-};
 
 const EDGE_STYLE = {
   prerequisite: { color: 'rgba(96,165,250,0.5)', width: 1.2, dash: [] },
@@ -34,9 +36,7 @@ export class StarMapRenderer extends CanvasStage {
     this.nodesById = {};
     this.centerId = null;
     this.hoverId = null;
-    this.expandedRelated = new Set();
     this.edgeMode = 'skilltree'; // 连线风格（见 EDGE_MODES）
-    this.badges = []; // 本帧绘制的「+N」标记（命中检测用）
     // 叠加层：导航路线（金色发光）与热门路径（青色），跨 setData 保持
     this.highlight = { nodes: new Set(), edges: new Set() };
     this.hotEdges = new Set();
@@ -45,6 +45,16 @@ export class StarMapRenderer extends CanvasStage {
     this.animAlpha = null; // Map<id, 0~1>
     this.animEdges = null; // 动画期间的新旧边并集（离开节点的边随之淡出）
     this.particles = null; // 星光拼形粒子（1d）：{ points:[{x,y,alpha,r}], caption } | null
+    // 相关节点流星（左右区，无连线）：id -> { tangent, phase }；由 StarMap 的 rAF 循环推进 meteorTime
+    this.meteors = new Map();
+    this.meteorTime = 0;
+    this.navNextId = null; // 导航「下一节点」id（后续指向导航终点，画方向箭头）
+    // 可调界面要素（开发者模式注入，默认近似值）
+    this.meteorSpeed = 50; // 流星屏幕速度 px/s
+    this.meteorTail = 44; // 流星尾迹长度 px
+    this.nodeScale = 1; // 节点大小倍率
+    this.centerFontScale = 1; // 中心视图字号倍率
+    this.edgeScale = 1; // 连线粗细倍率
   }
 
   // 当前应使用的节点坐标（动画中读动态值，否则读布局）
@@ -73,59 +83,76 @@ export class StarMapRenderer extends CanvasStage {
     this.layout = layout;
     this.nodesById = nodesById;
     this.centerId = centerId;
-    this.expandedRelated.clear();
+    this._rebuildMeteors();
   }
 
   nodeRadius(id) {
-    if (id === this.centerId) return 15;
-    const d = this.layout?.depth.get(id) ?? 1;
-    return Math.max(5.5, 10 - d * 1.2);
+    const base = id === this.centerId ? 15 : Math.max(5.5, 10 - (this.layout?.depth.get(id) ?? 1) * 1.2);
+    return base * this.nodeScale;
   }
 
-  // 相关线折叠：返回 { visibleEdges, hiddenCount: Map<nodeId, number> }
-  _collapseRelated(edges) {
-    const cfg = COLLAPSE_CFG[this.edgeMode] ?? COLLAPSE_CFG.legacy;
-    const relatedByNode = new Map();
-    for (const e of edges) {
-      if (e.kind !== 'related') continue;
-      for (const id of [e.from, e.to]) {
-        if (!relatedByNode.has(id)) relatedByNode.set(id, []);
-        relatedByNode.get(id).push(e);
-      }
+  // ---- 相关节点流星（左右区，无连线）----
+  // 轨迹：沿所在环切线方向的一条直线，从屏幕外飞入、穿过节点位置、再飞出屏幕（真正的流星），
+  // 中段满亮、两端淡出（屏幕外）。屏幕速度恒定 = METEOR_PX_PER_S（3 秒走 1 厘米），与缩放无关。
+  _rebuildMeteors() {
+    this.meteors.clear();
+    this.meteorTime = 0;
+    for (const [id, p] of this.layout?.pos ?? []) {
+      if (p.sector !== 'left' && p.sector !== 'right') continue;
+      const a = (p.angle ?? Math.atan2(p.y, p.x)) * DEG;
+      const rand = mulberry32(hashStr(id));
+      this.meteors.set(id, {
+        tangent: { x: -Math.sin(a), y: Math.cos(a) },
+        phase: rand(), // 0~1，错开相位
+      });
     }
-    const hidden = new Set();
-    const hiddenCount = new Map();
-    for (const [id, list] of relatedByNode) {
-      if (list.length > cfg.max && !this.expandedRelated.has(id)) {
-        const sorted = [...list].sort((a, b) => {
-          const oa = a.from === id ? a.to : a.from;
-          const ob = b.from === id ? b.to : b.from;
-          return oa < ob ? -1 : 1;
-        });
-        for (const e of sorted.slice(cfg.visible)) hidden.add(e);
-        hiddenCount.set(id, list.length - cfg.visible);
-      }
-    }
-    return { visibleEdges: edges.filter((e) => !hidden.has(e)), hiddenCount };
   }
 
-  // 切换连线风格（校验 key，切换时重置相关线展开状态）
+  _isMeteor(id) {
+    return this.meteors.has(id);
+  }
+
+  // 轨迹半径：视口半对角线 + 余量（世界单位），保证两端都在屏幕外，随缩放自适应
+  _meteorReach() {
+    const halfW = (this.width / 2) / (this.camera.scale || 1);
+    const halfH = (this.height / 2) / (this.camera.scale || 1);
+    return Math.hypot(halfW, halfH) + 80;
+  }
+
+  // 单向划过：从 -reach 飞到 +reach（穿过节点位置中点），alpha 两端淡出。
+  // 屏幕速度恒定：世界速度 = 屏幕速度 / scale，故缩放时流星在屏幕上的快慢不变。
+  _meteorState(id) {
+    const m = this.meteors.get(id);
+    if (!m) return { offset: 0, alpha: 0 };
+    const reach = this._meteorReach();
+    const total = 2 * reach;
+    const worldSpeed = this.meteorSpeed / (this.camera.scale || 1);
+    const dist = (this.meteorTime * worldSpeed + m.phase * total) % total;
+    const offset = dist - reach; // -reach .. +reach
+    const t = (offset + reach) / total; // 0..1
+    return { offset, alpha: fadeEnvelope(t) };
+  }
+
+  _meteorOffset(id) {
+    const m = this.meteors.get(id);
+    if (!m) return { x: 0, y: 0, alpha: 0 };
+    const st = this._meteorState(id);
+    return { x: m.tangent.x * st.offset, y: m.tangent.y * st.offset, alpha: st.alpha };
+  }
+
+  // 推进流星动画（StarMap.vue 的 rAF 循环调用）
+  tickMeteors(dt) {
+    this.meteorTime += Math.min(dt, 1 / 30);
+  }
+
+  // 切换连线风格（校验 key）
   setEdgeMode(mode) {
     if (!EDGE_MODES.some((m) => m.key === mode)) return;
     this.edgeMode = mode;
-    this.expandedRelated.clear();
-  }
-
-  toggleRelated(id) {
-    if (this.expandedRelated.has(id)) this.expandedRelated.delete(id);
-    else this.expandedRelated.add(id);
   }
 
   // ---- 命中检测（屏幕坐标）----
   hitTest(sx, sy) {
-    for (const b of this.badges) {
-      if (Math.hypot(sx - b.x, sy - b.y) <= 11) return { type: 'badge', id: b.id };
-    }
     if (!this.layout) return null;
     const w = this.toWorld(sx, sy);
     let best = null;
@@ -134,10 +161,18 @@ export class StarMapRenderer extends CanvasStage {
       const p = this.posOf(id);
       if (!p) continue;
       const r = this.nodeRadius(id) + 4 / this.camera.scale;
-      const d = Math.hypot(w.x - p.x, w.y - p.y);
-      if (d <= r && d < bestDist) {
-        best = id;
-        bestDist = d;
+      // 流星节点同时命中「家位置」与当前流星头位置（家位置常驻可点）
+      const candidates = [{ x: p.x, y: p.y }];
+      if (this._isMeteor(id)) {
+        const off = this._meteorOffset(id);
+        candidates.push({ x: p.x + off.x, y: p.y + off.y });
+      }
+      for (const c of candidates) {
+        const d = Math.hypot(w.x - c.x, w.y - c.y);
+        if (d <= r && d < bestDist) {
+          best = id;
+          bestDist = d;
+        }
       }
     }
     return best ? { type: 'node', id: best } : null;
@@ -154,20 +189,24 @@ export class StarMapRenderer extends CanvasStage {
     this.beginWorld();
     this._drawGuides();
     if (this.particles) this._drawParticles(); // 粒子层：世界空间、连线之下（不遮挡图结构）
-    // 动画期间：边取新旧并集（离开节点的边随之淡出），节点取动态坐标（含屏外飞入/飞出）
+    // 动画期间：边取新旧并集（离开节点的边随之淡出）；相关节点不再连线（仅前置/后续主干连线）
     const activeEdges = this.animEdges ?? this.layout.edges;
-    const { visibleEdges, hiddenCount } = this._collapseRelated(activeEdges);
-    this.badges = [];
-    for (const e of visibleEdges) this._drawEdge(e);
+    for (const e of activeEdges) {
+      if (e.kind === 'related') continue;
+      this._drawEdge(e);
+    }
     this._drawEdgeOverlay(this.hotEdges, '#4be1e1', 2.6); // 热门路径：青色
-    this._drawEdgeOverlay(this.highlight.edges, '#ffe27a', 3); // 导航路线：金色
+    this._drawEdgeOverlay(this.highlight.edges, '#ffe27a', 3); // 导航路线：金色（相关边仅此途径连线）
+    this._drawNavGuide(); // 导航方向指示（中心 → 下一节点，后续指向导航终点）
+    // 节点：相关节点画流星，其余（中心/前置/后续）画星点
     const drawIds = this.animPos ? [...this.animPos.keys()] : [...this.layout.pos.keys()];
     for (const id of drawIds) {
       const p = this.posOf(id);
-      if (p) this._drawNode(id, p);
+      if (!p) continue;
+      if (this._isMeteor(id)) this._drawMeteor(id, p);
+      else this._drawNode(id, p);
     }
     this._drawNodeRings();
-    for (const [id, count] of hiddenCount) this._drawBadge(id, count);
     this._drawLabels();
     ctx.restore();
   }
@@ -327,7 +366,7 @@ export class StarMapRenderer extends CanvasStage {
     ctx.strokeStyle = st.color;
     // 动画淡入淡出：边透明度跟随两端点较小者
     ctx.globalAlpha = alpha * Math.min(this._alphaOf(e.from), this._alphaOf(e.to));
-    ctx.lineWidth = (s.width + (hot ? 0.8 : 0)) / Math.sqrt(this.camera.scale);
+    ctx.lineWidth = ((s.width + (hot ? 0.8 : 0)) * this.edgeScale) / Math.sqrt(this.camera.scale);
     ctx.setLineDash(st.dash);
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
@@ -343,6 +382,61 @@ export class StarMapRenderer extends CanvasStage {
       center: id === this.centerId,
       alphaScale: this._alphaOf(id),
     });
+  }
+
+  // 相关节点流星：单向短促划过（头部状态色小星芒 + 尾部渐变淡出），首尾随 alpha 淡入淡出
+  _drawMeteor(id, p) {
+    const { ctx, camera } = this;
+    const m = this.meteors.get(id);
+    if (!m) return;
+    const st = this._meteorState(id);
+    const hx = p.x + m.tangent.x * st.offset;
+    const hy = p.y + m.tangent.y * st.offset;
+    const node = this.nodesById[id] ?? {};
+    const stateStyle = STATE_STYLE[node.state] ?? STATE_STYLE.dim;
+    const r = this.nodeRadius(id);
+    const alpha = this._alphaOf(id) * st.alpha;
+
+    // 尾迹：沿运动反方向渐变（紫罗兰，暗示「相关」；随亮度淡出）
+    const tailLen = this.meteorTail / Math.sqrt(camera.scale); // 屏幕恒定尾迹长度
+    const tx = -m.tangent.x;
+    const ty = -m.tangent.y;
+    const grad = ctx.createLinearGradient(hx, hy, hx + tx * tailLen, hy + ty * tailLen);
+    grad.addColorStop(0, `rgba(210,180,255,${0.85 * st.alpha})`);
+    grad.addColorStop(1, 'rgba(210,180,255,0)');
+    ctx.save();
+    ctx.globalAlpha = 0.8 * alpha;
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 1.6 / Math.sqrt(camera.scale);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.lineTo(hx + tx * tailLen, hy + ty * tailLen);
+    ctx.stroke();
+    ctx.restore();
+
+    // 头部：状态色小星芒 + 光晕
+    ctx.save();
+    ctx.globalAlpha = stateStyle.alpha * alpha;
+    if (stateStyle.glow > 0) {
+      ctx.shadowColor = stateStyle.glowColor;
+      ctx.shadowBlur = stateStyle.glow * Math.min(1.4, camera.scale);
+    }
+    ctx.fillStyle = stateStyle.fill;
+    drawSparkleStar(ctx, hx, hy, r * 0.85, { arm: 1.8, core: 0.85 });
+    ctx.shadowBlur = 0;
+    ctx.restore();
+
+    if (id === this.hoverId) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 1.2 / camera.scale;
+      ctx.globalAlpha = Math.max(0.3, alpha);
+      ctx.beginPath();
+      ctx.arc(hx, hy, r + 3.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   // 边叠加层：仅画当前邻域内存在的边（无向匹配 pairSet）
@@ -388,53 +482,71 @@ export class StarMapRenderer extends CanvasStage {
     ctx.restore();
   }
 
-  _drawBadge(id, count) {
-    const { ctx } = this;
-    const p = this.posOf(id);
-    if (!p) return;
-    const r = this.nodeRadius(id);
-    const bx = p.x + (r + 11) * 0.72;
-    const by = p.y - (r + 11) * 0.72;
+  // 导航方向指示：从中心到「下一节点」的虚线箭头（金色呼吸脉冲），后续指向导航终点
+  _drawNavGuide() {
+    const nextId = this.navNextId;
+    if (!nextId) return;
+    const a = this.posOf(this.centerId);
+    const b = this.posOf(nextId);
+    if (!a || !b) return;
+    const { ctx, camera } = this;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) return;
+    const ux = dx / len;
+    const uy = dy / len;
+    const pulse = 0.65 + 0.35 * Math.sin((performance.now() / 1000) * 2.4);
+
+    const sx = a.x + ux * (this.nodeRadius(this.centerId) + 8);
+    const sy = a.y + uy * (this.nodeRadius(this.centerId) + 8);
+    const ex = b.x - ux * (this.nodeRadius(nextId) + 10);
+    const ey = b.y - uy * (this.nodeRadius(nextId) + 10);
+
     ctx.save();
-    ctx.fillStyle = 'rgba(30,38,66,0.95)';
-    ctx.strokeStyle = 'rgba(196,141,255,0.8)';
-    ctx.lineWidth = 1 / this.camera.scale;
+    ctx.strokeStyle = `rgba(255,226,122,${0.5 * pulse})`;
+    ctx.lineWidth = 1.6 / camera.scale;
+    ctx.setLineDash([4 / camera.scale, 6 / camera.scale]);
     ctx.beginPath();
-    ctx.arc(bx, by, 8.5, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
     ctx.stroke();
-    ctx.fillStyle = '#d7b8ff';
-    ctx.font = '9px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`+${count}`, bx, by + 0.5);
+
+    // 箭头头部（指向下一节点）
+    const headLen = 8 / camera.scale;
+    ctx.setLineDash([]);
+    ctx.fillStyle = `rgba(255,226,122,${0.85 * pulse})`;
+    ctx.beginPath();
+    ctx.moveTo(ex + ux * headLen, ey + uy * headLen);
+    ctx.lineTo(ex - uy * headLen * 0.5, ey + ux * headLen * 0.5);
+    ctx.lineTo(ex + uy * headLen * 0.5, ey - ux * headLen * 0.5);
+    ctx.closePath();
+    ctx.fill();
     ctx.restore();
-    const s = this.toScreen(bx, by);
-    this.badges.push({ id, x: s.x, y: s.y });
   }
 
   _drawLabels() {
-    const { ctx, camera } = this;
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
+    const { camera } = this;
     for (const [id, p] of this.layout.pos) {
-      const pos = this.posOf(id);
+      const pos = this.posOf(id); // 流星节点标签固定在家位置（不随流星头移动/淡出）
       if (!pos) continue;
       const isCenter = id === this.centerId;
-      // 缩放太小时只画中心与悬停标签，避免拥挤
+      // 缩得过小时只画中心与悬停标签，避免拥挤（屏幕恒定字号下仍保持可读）
       if (!isCenter && id !== this.hoverId && camera.scale < 0.5) continue;
       const node = this.nodesById[id] ?? {};
       const r = this.nodeRadius(id);
-      ctx.font = `${isCenter ? '600 13px' : '11px'} system-ui, "PingFang SC", "Microsoft YaHei", sans-serif`;
-      ctx.fillStyle =
-        node.state === 'dim'
-          ? 'rgba(170,180,210,0.55)'
-          : isCenter
-            ? 'rgba(255,255,255,0.95)'
-            : 'rgba(226,232,255,0.8)';
-      ctx.fillText(node.title ?? id, pos.x, pos.y + r + 5);
+      const fontPx = Math.round((isCenter ? 15 : 13) * this.centerFontScale);
+      this.drawScreenText(node.title ?? id, pos.x, pos.y + r + 5, {
+        font: `${isCenter ? 600 : 400} ${fontPx}px system-ui, "PingFang SC", "Microsoft YaHei", sans-serif`,
+        fill:
+          node.state === 'dim'
+            ? 'rgba(170,180,210,0.7)'
+            : isCenter
+              ? 'rgba(255,255,255,0.95)'
+              : 'rgba(226,232,255,0.85)',
+        align: 'center',
+        baseline: 'top',
+      });
     }
-    ctx.restore();
   }
 }

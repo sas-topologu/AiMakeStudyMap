@@ -1,23 +1,63 @@
-// 中心视图布局：屏幕两条对角线分四象限
-//   后续（successor）→ 上方区；前置（prerequisite）→ 下方区；相关（related）→ 左右两区
+// 中心视图布局：前置/后续向中轴线（垂直轴）靠拢，相关节点占左右两侧
+//   后续（successor）→ 上方窄扇区；前置（prerequisite）→ 下方窄扇区；相关（related）→ 左右宽扇区
 // 多层按 depth 放在同心环带上（第 d 环半径 = ringStep * d），深层节点角度归属于其父节点象限
+// 导航锚点：nav.nextId/prevId 分别钉在 270°/90°，让「后续指向导航终点」
 // 防碰撞：同环节点按角度均分 + 最小角距推移（简单实现，不追求完美）
 const DEG = Math.PI / 180;
 
 // 屏幕坐标系（y 向下）：0° = 右，90° = 下，180° = 左，270° = 上
+// 前置/后续向中轴线（垂直轴）靠拢：不再铺满对角线半区，而是收窄为以 90°/270° 为中心的窄扇区；
+// 相关节点获得两侧更宽的区域（以流星形式划过，见 renderer.js）。
 export const SECTORS = {
-  top: { lo: 225, hi: 315, label: '后续' },
-  bottom: { lo: 45, hi: 135, label: '前置' },
-  left: { lo: 135, hi: 225, label: '相关' },
-  right: { lo: 315, hi: 405, label: '相关' }, // 跨 360°，归一化时处理
+  top: { lo: 240, hi: 300, label: '后续' }, // 中心 270°（正上方）
+  bottom: { lo: 60, hi: 120, label: '前置' }, // 中心 90°（正下方）
+  left: { lo: 120, hi: 240, label: '相关' },
+  right: { lo: 300, hi: 420, label: '相关' }, // 跨 360°，归一化时处理
 };
 
-const SECTOR_MARGIN = 8; // 与对角线保持的角度余量
+const SECTOR_MARGIN = 8; // 与扇区边界保持的角度余量
 const MIN_GAP_DEG = 11; // 同环最小角距
 
 const norm360 = (a) => ((a % 360) + 360) % 360;
 
-export function computeLayout({ centerId, nodes, edges, ringStep = 160 }) {
+// 在 [lo, hi] 内、避开 cuts（锚点角度）后，把 count 个角度按区间宽度比例均分。
+// 用于导航锚点附近其余节点的排布：锚点两侧对称展开，其余节点自然「指向」锚点方向。
+export function distributeAngles(count, lo, hi, cuts = []) {
+  if (count <= 0) return [];
+  const sorted = cuts
+    .map(norm360)
+    .filter((c) => c >= lo && c <= hi)
+    .sort((a, b) => a - b);
+  const intervals = [];
+  let cur = lo;
+  for (const c of sorted) {
+    if (c - MIN_GAP_DEG > cur) intervals.push([cur, c - MIN_GAP_DEG]);
+    cur = Math.max(cur, c + MIN_GAP_DEG);
+  }
+  if (hi - cur > 0.5) intervals.push([cur, hi]);
+  if (intervals.length === 0) intervals.push([lo, hi]); // 锚点占满扇区时的兜底
+
+  const widths = intervals.map(([a, b]) => b - a);
+  const total = widths.reduce((s, w) => s + w, 0);
+  const counts = widths.map((w) => Math.round((w / total) * count));
+  let diff = count - counts.reduce((s, x) => s + x, 0);
+  let widest = 0;
+  for (let i = 1; i < widths.length; i += 1) if (widths[i] > widths[widest]) widest = i;
+  counts[widest] += diff;
+
+  const out = [];
+  for (let i = 0; i < intervals.length; i += 1) {
+    const [a, b] = intervals[i];
+    const n = counts[i];
+    for (let j = 0; j < n; j += 1) {
+      out.push(n === 1 ? (a + b) / 2 : a + ((b - a) * j) / (n - 1));
+    }
+  }
+  out.sort((x, y) => x - y);
+  return out;
+}
+
+export function computeLayout({ centerId, nodes, edges, ringStep = 160, nav = null }) {
   const nodesById = new Map(nodes.map((n) => [n.id, n]));
 
   // 邻接表（双向，排序保证确定性）
@@ -79,6 +119,12 @@ export function computeLayout({ centerId, nodes, edges, ringStep = 160 }) {
   relBucket.sort();
   relBucket.forEach((id, i) => sectorOf.set(id, i % 2 === 0 ? 'right' : 'left'));
 
+  // 导航锚点：下一节点钉在正上方(270°)→「后续指向导航终点」，上一节点钉在正下方(90°)
+  const anchors = new Map(); // id -> { deg, sector }
+  if (nav?.nextId && depth.has(nav.nextId)) anchors.set(nav.nextId, { deg: 270, sector: 'top' });
+  if (nav?.prevId && depth.has(nav.prevId)) anchors.set(nav.prevId, { deg: 90, sector: 'bottom' });
+  for (const [id, a] of anchors) sectorOf.set(id, a.sector);
+
   // 深层节点继承父节点象限
   for (let d = 2; d <= 3; d += 1) {
     for (const [id, dd] of depth) {
@@ -86,7 +132,7 @@ export function computeLayout({ centerId, nodes, edges, ringStep = 160 }) {
     }
   }
 
-  // 逐环放置：环内按 (象限, 父节点角度, id) 排序后在象限角域内均分
+  // 逐环放置：环内按 (象限, 父节点角度, id) 排序后在象限角域内均分；锚点精确钉在目标角
   const pos = new Map([[centerId, { x: 0, y: 0, angle: null, ring: 0, sector: 'center' }]]);
   for (let d = 1; d <= 3; d += 1) {
     const r = ringStep * d;
@@ -103,14 +149,30 @@ export function computeLayout({ centerId, nodes, edges, ringStep = 160 }) {
       const margin = Math.min(SECTOR_MARGIN, span / (ids.length + 1) / 2);
       const lo = sector.lo + margin;
       const hi = sector.hi - margin;
-      ids.sort((a, b) => {
+
+      const anchoredIds = ids.filter((id) => anchors.has(id));
+      const restIds = ids.filter((id) => !anchors.has(id));
+      restIds.sort((a, b) => {
         const pa = pos.get(parent.get(a))?.angle ?? (lo + hi) / 2;
         const pb = pos.get(parent.get(b))?.angle ?? (lo + hi) / 2;
         return pa - pb || (a < b ? -1 : 1);
       });
-      ids.forEach((id, i) => {
-        const angle = ids.length === 1 ? (lo + hi) / 2 : lo + ((hi - lo) * i) / (ids.length - 1);
-        pos.set(id, { x: 0, y: 0, angle: norm360(angle), ring: d, sector: sectorName });
+
+      // 锚点精确放置
+      for (const id of anchoredIds) {
+        pos.set(id, { x: 0, y: 0, angle: norm360(anchors.get(id).deg), ring: d, sector: sectorName });
+      }
+      // 其余节点在 [lo,hi] 内、避开锚点角度均分
+      const cuts = anchoredIds.map((id) => anchors.get(id).deg);
+      const angles = distributeAngles(restIds.length, lo, hi, cuts);
+      restIds.forEach((id, i) => {
+        pos.set(id, {
+          x: 0,
+          y: 0,
+          angle: norm360(angles[i] ?? (lo + hi) / 2),
+          ring: d,
+          sector: sectorName,
+        });
       });
     }
 
@@ -122,6 +184,12 @@ export function computeLayout({ centerId, nodes, edges, ringStep = 160 }) {
       const gap = placed[i].angle - placed[i - 1].angle;
       if (gap < MIN_GAP_DEG) placed[i].angle = placed[i - 1].angle + MIN_GAP_DEG;
     }
+    // 碰撞推移后锚点回到精确位置（其余节点已避开）
+    for (const [id, a] of anchors) {
+      if (depth.get(id) !== d) continue;
+      const p = pos.get(id);
+      if (p) p.angle = norm360(a.deg);
+    }
     for (const id of ringNodes) {
       const p = pos.get(id);
       const a = p.angle * DEG;
@@ -130,7 +198,7 @@ export function computeLayout({ centerId, nodes, edges, ringStep = 160 }) {
     }
   }
 
-  // 边附加渲染类别：successor（琥珀）/ prerequisite（蓝）/ related（紫虚线）
+  // 边附加渲染类别：successor（琥珀）/ prerequisite（蓝）/ related（不再连线，仅导航高亮时叠加）
   const styledEdges = [];
   for (const e of edges) {
     if (!pos.has(e.from) || !pos.has(e.to)) continue;

@@ -230,6 +230,77 @@ export function layoutConstellation(nodes, edges, { ringStep = 75, coreR = 30 } 
   return pos;
 }
 
+// ---- 主干链（学科内最长 prerequisite 链）----
+// 标识先于星座：前端先用该纯函数算出每个学科的「主干」节点链，
+// 再以它为骨架在宏观视图各档位渲染可读标签（后端仅提供 nodes/edges 资料）。
+// 返回学习顺序（根 → 叶）的节点 id 数组；无前置边时退化为字典序第一个节点。
+export function longestChain(nodes, edges) {
+  const ids = new Set(nodes.map((n) => n.id));
+  const prereqsOf = new Map([...ids].map((id) => [id, []]));
+  const dependentsOf = new Map([...ids].map((id) => [id, []]));
+  for (const e of edges) {
+    if (e.type !== 'prerequisite' || !ids.has(e.from) || !ids.has(e.to)) continue;
+    prereqsOf.get(e.from).push(e.to);
+    dependentsOf.get(e.to).push(e.from);
+  }
+  for (const list of prereqsOf.values()) list.sort();
+  for (const list of dependentsOf.values()) list.sort();
+
+  // Kahn 最长路径分层（与 layoutConstellation 同语义；防御：环兜底为 0）
+  const remaining = new Map([...ids].map((id) => [id, prereqsOf.get(id).length]));
+  const layer = new Map();
+  let frontier = [...ids].filter((id) => remaining.get(id) === 0).sort();
+  for (const id of frontier) layer.set(id, 0);
+  while (frontier.length) {
+    const next = [];
+    for (const id of frontier) {
+      for (const dep of dependentsOf.get(id)) {
+        layer.set(dep, Math.max(layer.get(dep) ?? 0, layer.get(id) + 1));
+        remaining.set(dep, remaining.get(dep) - 1);
+        if (remaining.get(dep) === 0) next.push(dep);
+      }
+    }
+    next.sort();
+    frontier = next;
+  }
+  for (const id of ids) if (!layer.has(id)) layer.set(id, 0);
+
+  // 最深节点（字典序打破并列，保证确定性）
+  let deep = null;
+  let deepLayer = -1;
+  for (const id of ids) {
+    const l = layer.get(id);
+    if (l > deepLayer || (l === deepLayer && (deep === null || id < deep))) {
+      deep = id;
+      deepLayer = l;
+    }
+  }
+  if (deep == null) return [];
+
+  // 从最深节点沿「层级最高的前置」回溯到根，得到一条最长链
+  const chain = [deep];
+  let cur = deep;
+  let guard = ids.size + 1;
+  while (guard-- > 0) {
+    const prereqs = prereqsOf.get(cur) ?? [];
+    if (prereqs.length === 0) break;
+    let best = null;
+    let bestLayer = -1;
+    for (const p of prereqs) {
+      const l = layer.get(p) ?? 0;
+      if (l > bestLayer || (l === bestLayer && (best === null || p < best))) {
+        best = p;
+        bestLayer = l;
+      }
+    }
+    if (best == null || best === cur) break;
+    chain.push(best);
+    cur = best;
+  }
+  chain.reverse();
+  return chain;
+}
+
 // ---- 网格聚合（星团档）----
 // items: 可迭代的 { id, x, y }；cellWorld：网格边长（世界单位）
 // → Map<key, { cx, cy, count, ids }>（cx/cy 为桶内质心）

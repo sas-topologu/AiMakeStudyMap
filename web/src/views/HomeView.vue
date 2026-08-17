@@ -10,6 +10,8 @@
       :highlight="navHighlight"
       :hot-edges="navHotEdges"
       :edge-mode="edgeMode"
+      :nav-next-id="navNextId"
+      :nav-prev-id="navPrevId"
       @recenter="onRecenter"
       @open="onOpen"
     />
@@ -26,7 +28,7 @@
         </template>
       </div>
     </header>
-    <p class="home-hint">单击星点切换中心 · 双击 / 长按打开知识卡 · 拖拽平移 · 滚轮缩放</p>
+    <p class="home-hint">单击星点切换中心 · 双击 / 长按打开知识卡 · 滚轮缩放</p>
 
     <!-- 连线风格切换（多风格对比挑选） -->
     <div class="edge-mode-panel panel">
@@ -65,10 +67,10 @@ const STATE_LABEL = { dim: '暗淡', open: '开放', passed: '通关', lit: '点
 const stateLabel = (s) => STATE_LABEL[s] ?? s;
 
 const EDGE_MODE_HINTS = {
-  legacy: '全部连线一视同仁（原版）',
+  legacy: '全部前后连线一视同仁（相关为流星）',
   skilltree: '按学习状态分档：已点亮亮、可解锁呼吸、未探索隐去',
   depth: '越远离中心的连线越淡越细',
-  trunk: '只画学习主干，相关连线折成 +N',
+  trunk: '只画前后主干（均匀），相关为流星',
 };
 
 const EDGE_MODE_KEY = 'starmap:edgeMode';
@@ -87,6 +89,16 @@ const navHighlight = computed(() =>
   nav.active ? { nodes: nav.routeNodeIds, edges: nav.routeEdgePairs } : { nodes: [], edges: [] },
 );
 const navHotEdges = computed(() => (nav.hotActive ? nav.hotEdges : []));
+
+// 导航：中心节点在路线上的上一步/下一步，用于中心视图「后续指向导航终点」的锚点排布
+const routeNodes = computed(() => (nav.active ? (nav.route?.nodes ?? []) : []));
+const centerRouteIndex = computed(() => routeNodes.value.findIndex((n) => n.id === starmap.centerId));
+const navNextId = computed(() =>
+  centerRouteIndex.value >= 0 ? (routeNodes.value[centerRouteIndex.value + 1]?.id ?? null) : null,
+);
+const navPrevId = computed(() =>
+  centerRouteIndex.value >= 0 ? (routeNodes.value[centerRouteIndex.value - 1]?.id ?? null) : null,
+);
 
 const loadError = ref('');
 

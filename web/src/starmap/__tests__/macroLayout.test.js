@@ -4,6 +4,7 @@ import {
   layoutUniverse,
   layoutConstellation,
   layoutWorld,
+  longestChain,
   bucketize,
   bucketKeyOf,
   makeSyntheticGraph,
@@ -77,6 +78,37 @@ describe('layoutConstellation', () => {
     const pos = layoutConstellation([N('A'), N('B')], [PRE('A', 'B'), PRE('B', 'A')]);
     expect(Number.isFinite(pos.get('A').x)).toBe(true);
     expect(Number.isFinite(pos.get('B').y)).toBe(true);
+  });
+});
+
+describe('longestChain', () => {
+  it('返回学科内最长前置链（学习顺序：根 → 叶）', () => {
+    // D 前置 C，C 前置 B，B 前置 A → A→B→C→D
+    const chain = longestChain(
+      [N('A'), N('B'), N('C'), N('D')],
+      [PRE('B', 'A'), PRE('C', 'B'), PRE('D', 'C')],
+    );
+    expect(chain).toEqual(['A', 'B', 'C', 'D']);
+  });
+
+  it('菱形依赖取最长链，并列按 id 确定性打破', () => {
+    // D 依赖 B 与 C；B、C 依赖 A → 最长链 A→B→D（B < C）
+    const chain = longestChain(
+      [N('A'), N('B'), N('C'), N('D')],
+      [PRE('B', 'A'), PRE('C', 'A'), PRE('D', 'B'), PRE('D', 'C')],
+    );
+    expect(chain).toEqual(['A', 'B', 'D']);
+  });
+
+  it('无前置边退化为字典序最小的单个节点', () => {
+    const chain = longestChain([N('A'), N('B')], []);
+    expect(chain.length).toBe(1);
+    expect(chain[0]).toBe('A');
+  });
+
+  it('related 边不影响主干链', () => {
+    const chain = longestChain([N('A'), N('B'), N('C')], [PRE('B', 'A'), REL('C', 'A')]);
+    expect(chain).toEqual(['A', 'B']);
   });
 });
 

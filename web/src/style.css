@@ -1958,6 +1958,46 @@ figcaption {
   opacity: 0.4;
 }
 
+/* ---- 开发者模式滑扭 ---- */
+.chip.active {
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgba(122, 162, 255, 0.12);
+}
+
+.dev-sliders {
+  margin-top: 10px;
+  padding: 10px 2px;
+  border-top: 1px dashed var(--panel-border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dev-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dev-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+.dev-label small {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dev-row input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent-strong);
+  cursor: pointer;
+}
+
 /* ---- 移动端 ---- */
 @media (max-width: 640px) {
   .home-hint {
