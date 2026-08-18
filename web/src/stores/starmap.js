@@ -7,7 +7,7 @@ import { defineStore } from 'pinia';
 import { api } from '../api/client.js';
 import { useUiStore } from './ui.js';
 
-const CACHE_KEY = 'starmap.cache.v1';
+const CACHE_KEY = 'starmap.cache.v2'; // v2：连线深度 3→2，旧 depth=3 邻域缓存作废
 const RECENT_KEY = 'starmap.recent';
 
 function emptyCache() {

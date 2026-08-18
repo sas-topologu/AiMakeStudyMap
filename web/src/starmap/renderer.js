@@ -385,6 +385,7 @@ export class StarMapRenderer extends CanvasStage {
   }
 
   // 相关节点流星：单向短促划过（头部状态色小星芒 + 尾部渐变淡出），首尾随 alpha 淡入淡出
+  // 家位置始终画一颗常驻星（状态色、稍小稍淡），流星划过是其动态效果——保证相关节点始终可见可点
   _drawMeteor(id, p) {
     const { ctx, camera } = this;
     const m = this.meteors.get(id);
@@ -396,6 +397,13 @@ export class StarMapRenderer extends CanvasStage {
     const stateStyle = STATE_STYLE[node.state] ?? STATE_STYLE.dim;
     const r = this.nodeRadius(id);
     const alpha = this._alphaOf(id) * st.alpha;
+
+    // 常驻家星（流星飞行轨迹之外，节点始终可见；悬停时画白环）
+    this.drawStarNode(node, p.x, p.y, r * 0.75, {
+      hover: id === this.hoverId,
+      center: false,
+      alphaScale: this._alphaOf(id) * 0.55,
+    });
 
     // 尾迹：沿运动反方向渐变（紫罗兰，暗示「相关」；随亮度淡出）
     const tailLen = this.meteorTail / Math.sqrt(camera.scale); // 屏幕恒定尾迹长度
