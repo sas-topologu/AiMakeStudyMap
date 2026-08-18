@@ -3,17 +3,18 @@
 // 持久化到 localStorage（`starmap:dev` / `starmap:devMode`）。
 import { reactive, ref } from 'vue';
 
-const DEV_KEY = 'starmap:dev';
+const DEV_KEY = 'starmap:dev.v2'; // v2：新默认基线（旧 starmap:dev 不再读取）
 const MODE_KEY = 'starmap:devMode';
 
-// 默认值取近似（换算不必严格）
+// 默认值取近似（换算不必严格）；v2 基线由用户指定：
+// 流星速度中=50px/s、流星尾巴52px、中心字体1.2×、宏观字体1.6×、节点1.3×、连线1.2×、环带1×
 export const DEV_DEFAULTS = {
-  meteorSpeed: 50, // 流星屏幕速度 px/s
-  meteorTail: 44, // 流星尾迹长度 px
-  centerFont: 1.0, // 中心视图字号倍率
-  macroFont: 1.0, // 宏观视图字号倍率
-  nodeSize: 1.0, // 节点大小倍率
-  edgeWidth: 1.0, // 连线粗细倍率
+  meteorSpeed: 50, // 流星屏幕速度 px/s（中档）
+  meteorTail: 52, // 流星尾迹长度 px
+  centerFont: 1.2, // 中心视图字号倍率
+  macroFont: 1.6, // 宏观视图字号倍率
+  nodeSize: 1.3, // 节点大小倍率
+  edgeWidth: 1.2, // 连线粗细倍率
   ringStep: 1.0, // 环带间距倍率
 };
 

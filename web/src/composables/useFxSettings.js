@@ -1,15 +1,16 @@
-// 动效设置（localStorage `starmap:fx`，模块级单例）
+// 动效设置（localStorage `starmap:fx.v2`，模块级单例）
 // 本阶段：transition 切换动画开关；1d 粒子速度等设置复用同一存储与本 composable
 // prefers-reduced-motion: reduce → 强制关闭（无视设置）
+// v2：星光拼形默认「快」（particleSpeed=2）
 import { reactive, ref, computed } from 'vue';
 
-const FX_KEY = 'starmap:fx';
+const FX_KEY = 'starmap:fx.v2';
 
 function load() {
   try {
-    return { transition: true, particleSpeed: 1, ...JSON.parse(localStorage.getItem(FX_KEY) || '{}') };
+    return { transition: true, particleSpeed: 2, ...JSON.parse(localStorage.getItem(FX_KEY) || '{}') };
   } catch {
-    return { transition: true, particleSpeed: 1 };
+    return { transition: true, particleSpeed: 2 };
   }
 }
 
