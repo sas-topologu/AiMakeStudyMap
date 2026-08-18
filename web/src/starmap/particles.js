@@ -27,6 +27,7 @@ export const DEGRADE_WINDOW_S = 2;
 const SPAWN_R_MIN = 80; // 星星生成范围：以节点为中心，内半径
 const SPAWN_R_MAX = 240; // 生成范围外半径（大范围，与图像分布上限一致）
 const AIM_WEIGHT = 0.7; // 生成方向偏向本组图像中心的比例（其余随机）
+const CAPTION_MARGIN = 10; // 标题与特效墨迹下沿的间距（世界单位，防文字卡进图像）
 
 // 不可预测种子（时间戳 + 熵）：无 seed 注入时每次 setEmblems 都得到全新随机序列
 export function randomSeed() {
@@ -278,7 +279,14 @@ export class ParticleSystem {
         slots.push({ x: s.x + ox, y: s.y + oy, occupied: s.occupied });
       }
       if (g.em.caption) {
-        captions.push({ text: g.em.caption, alpha: g.reveal ? 0.75 * dismissK : 0, x: ox, y: oy + 92 });
+        // 标题贴近特效：放在墨迹下沿 + 小间距（公式短 → 大幅靠近），避免文字卡进图像
+        const maxY = g.em.bounds?.maxY ?? 0;
+        captions.push({
+          text: g.em.caption,
+          alpha: g.reveal ? 0.75 * dismissK : 0,
+          x: ox,
+          y: oy + maxY + CAPTION_MARGIN,
+        });
       }
     }
     for (const g of this.groups) {

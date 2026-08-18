@@ -8,7 +8,33 @@ const SAMPLE_H = 160; // 渲染位图高
 const EMBLEM_BOX = 150; // 归一化后图形最大边长（世界单位）
 const SLOT_MAX = 16; // 每组眼位上限（稀疏优雅，类星座）
 const PATH_MIN_LEN = 6; // 过滤过短碎段（孤立文字/杂点）
-const cache = new Map(); // `${nodeId}#${index}` → { paths, slots, caption }
+const cache = new Map(); // `${nodeId}#${index}` → { paths, slots, caption, bounds }
+
+// 墨迹包围盒（世界坐标，相对徽章中心）；无路径时返回全 0
+export function computeBounds(paths) {
+  const b = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+  if (!paths?.length) return b;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const p of paths) {
+    for (const pt of p) {
+      if (pt.x < minX) minX = pt.x;
+      if (pt.x > maxX) maxX = pt.x;
+      if (pt.y < minY) minY = pt.y;
+      if (pt.y > maxY) maxY = pt.y;
+    }
+  }
+  if (minX !== Infinity) {
+    b.minX = minX;
+    b.maxX = maxX;
+    b.minY = minY;
+    b.maxY = maxY;
+  }
+  return b;
+}
+
 
 // ---- 纯函数（可单测）----
 
@@ -174,14 +200,15 @@ export function toWorld(pts, w, h) {
 export async function vectorizeEmblem(nodeId, index, emblem, mediaById = {}, maxSlots = SLOT_MAX) {
   const key = `${nodeId}#${index}`;
   if (cache.has(key)) return cache.get(key);
-  let result = { paths: [], slots: [], caption: emblem?.caption ?? '' };
+  const empty = { paths: [], slots: [], caption: emblem?.caption ?? '', bounds: computeBounds([]) };
+  let result = empty;
   try {
     if (typeof document !== 'undefined') {
       if (emblem?.type === 'formula') result = vectorizeFormula(emblem.content, maxSlots);
       else if (emblem?.type === 'image') result = await vectorizeImage(emblem.content, mediaById, maxSlots);
     }
   } catch {
-    result = { paths: [], slots: [], caption: emblem?.caption ?? '' }; // 失败静默：无拼形
+    result = empty; // 失败静默：无拼形
   }
   cache.set(key, result);
   return result;
@@ -236,5 +263,5 @@ function vectorizeData(rgba, w, h, caption, maxSlots) {
   const paths = imgPaths.map((p) => toWorld(p, w, h));
   const slotPts = extractSlots(imgPaths, maxSlots);
   const slots = toWorld(slotPts, w, h);
-  return { paths, slots, caption };
+  return { paths, slots, caption, bounds: computeBounds(paths) };
 }
