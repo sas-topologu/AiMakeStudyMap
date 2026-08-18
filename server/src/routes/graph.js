@@ -1,4 +1,4 @@
-// 星图数据：邻域 BFS（深度 ≤3）、宏观全量、版本同步
+// 星图数据：邻域 BFS（深度 ≤2）、宏观全量、版本同步
 import { Router } from 'express';
 import { errors } from '../errors.js';
 import {
@@ -10,18 +10,18 @@ import {
 import { effectiveState, batchEffectiveStates } from '../services/stateService.js';
 import { authOptional } from '../middleware/auth.js';
 
-const clampDepth = (d) => Math.min(3, Math.max(1, d));
+const clampDepth = (d) => Math.min(2, Math.max(1, d));
 
 export function graphRouter({ db, secret }) {
   const router = Router();
 
-  // 以节点为中心按边 BFS 扩展，深度上限 3 层；不一次性拉全库
+  // 以节点为中心按边 BFS 扩展，深度上限 2 层；不一次性拉全库
   router.get('/graph/neighborhood/:id', authOptional(secret), (req, res) => {
     const startId = req.params.id;
     const exists = db.prepare('SELECT 1 FROM nodes WHERE id = ?').get(startId);
     if (!exists) throw errors.notFound('节点不存在');
 
-    const depthLimit = clampDepth(Number(req.query.depth) || 3);
+    const depthLimit = clampDepth(Number(req.query.depth) || 2);
     const userId = req.user?.id ?? null;
 
     // BFS

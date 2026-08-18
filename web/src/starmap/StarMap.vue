@@ -98,7 +98,7 @@ function currentDisplayedPos() {
 function computeFitCamera() {
   const w = wrap.value.clientWidth;
   const h = wrap.value.clientHeight;
-  const reach = ringStep() * 3 + 60;
+  const reach = ringStep() * 2 + 60;
   return { x: 0, y: 0, scale: Math.min(1.15, Math.max(0.22, Math.min(w, h) / 2 / reach)) };
 }
 

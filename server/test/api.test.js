@@ -281,16 +281,16 @@ describe('API 集成', () => {
     expect(meta.body.contentVersion).toBe(1);
   });
 
-  it('neighborhood 深度限制：5 节点链 depth=3 只到第 4 个节点', async () => {
-    const res = await agent.get('/api/graph/neighborhood/t.a?depth=3');
+  it('neighborhood 深度限制：5 节点链 depth=2 只到第 3 个节点', async () => {
+    const res = await agent.get('/api/graph/neighborhood/t.a?depth=2');
     expect(res.status).toBe(200);
     const ids = res.body.nodes.map((n) => n.id).sort();
-    expect(ids).toEqual(['t.a', 't.b', 't.c', 't.d']);
-    expect(res.body.nodes.find((n) => n.id === 't.d').depth).toBe(3);
-    expect(res.body.edges).toHaveLength(3);
-    // depth clamp：越界参数压回 1~3
+    expect(ids).toEqual(['t.a', 't.b', 't.c']);
+    expect(res.body.nodes.find((n) => n.id === 't.c').depth).toBe(2);
+    expect(res.body.edges).toHaveLength(2);
+    // depth clamp：越界参数压回 1~2
     const d9 = await agent.get('/api/graph/neighborhood/t.a?depth=9');
-    expect(d9.body.nodes).toHaveLength(4);
+    expect(d9.body.nodes).toHaveLength(3);
 
     const all = await agent.get('/api/graph/all');
     expect(all.body.nodes).toHaveLength(5);

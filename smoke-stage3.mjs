@@ -52,9 +52,9 @@ ok(meta.data.contentVersion >= 1, `meta/version contentVersion=${meta.data.conte
 const sync = await call('/sync?since=0');
 ok(Array.isArray(sync.data.nodes) && sync.data.nodes.length >= 15, `sync?since=0 返回 ${sync.data.nodes.length} 张卡片`);
 
-// 4. 邻域（以代数式为中心，depth=3）
+// 4. 邻域（以代数式为中心，depth=2）
 const center = 'math.algebra.expression';
-const hood = await call(`/graph/neighborhood/${center}?depth=3`, { token });
+const hood = await call(`/graph/neighborhood/${center}?depth=2`, { token });
 ok(hood.status === 200 && hood.data.nodes.length > 1, `neighborhood: ${hood.data.nodes.length} 节点 ${hood.data.edges.length} 边`);
 ok(hood.data.nodes.find((n) => n.id === center)?.state === 'open' === false || true, '中心节点状态已标注');
 const centerState = hood.data.nodes.find((n) => n.id === center).state;

@@ -1,4 +1,4 @@
-// 星图数据：当前中心节点 + 邻域（depth=3）
+// 星图数据：当前中心节点 + 邻域（depth=2）
 // 本地缓存（localStorage）：
 //   - cards：完整知识卡（/api/sync 差异合并、详情页读取时写入）
 //   - hoods：以某节点为中心的邻域快照（含当时用户状态；闯关/跃迁后失效清空）
@@ -95,7 +95,7 @@ export const useStarmapStore = defineStore('starmap', {
           this.nodes = hood.nodes;
           this.edges = hood.edges;
         } else {
-          const hood = await api.neighborhood(id, 3);
+          const hood = await api.neighborhood(id, 2);
           this.nodes = hood.nodes;
           this.edges = hood.edges;
           this.cache.hoods[id] = hood;

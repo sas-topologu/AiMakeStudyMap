@@ -62,7 +62,7 @@ export const api = {
   login: (username, password) => request('/auth/login', { method: 'POST', body: { username, password } }),
   me: () => request('/auth/me'),
   // 星图
-  neighborhood: (id, depth = 3) => request(`/graph/neighborhood/${encodeURIComponent(id)}?depth=${depth}`),
+  neighborhood: (id, depth = 2) => request(`/graph/neighborhood/${encodeURIComponent(id)}?depth=${depth}`),
   graphAll: () => request('/graph/all'),
   nodeDetail: (id) => request(`/nodes/${encodeURIComponent(id)}`),
   // 搜索 / 跃迁

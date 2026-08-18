@@ -69,14 +69,14 @@ export function computeLayout({ centerId, nodes, edges, ringStep = 160, nav = nu
   }
   for (const list of adj.values()) list.sort((a, b) => (a.other < b.other ? -1 : 1));
 
-  // BFS：确定父节点与深度（渲染递归深度受服务器 depth ≤3 约束，绝不无限展开）
+  // BFS：确定父节点与深度（渲染递归深度受服务器 depth ≤2 约束，绝不无限展开）
   const depth = new Map([[centerId, 0]]);
   const parent = new Map();
   const queue = [centerId];
   while (queue.length) {
     const cur = queue.shift();
     const d = depth.get(cur);
-    if (d >= 3) continue; // 深度上限 3 层
+    if (d >= 2) continue; // 深度上限 2 层
     for (const { other } of adj.get(cur) ?? []) {
       if (!depth.has(other)) {
         depth.set(other, d + 1);
