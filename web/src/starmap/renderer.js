@@ -154,26 +154,6 @@ export class StarMapRenderer extends CanvasStage {
     this.meteorTime += Math.min(dt, 1 / 30);
   }
 
-  // 流星名称环：圆心=流星中心（家位置），首字在星正上方、顺时针排布、字始终正立。
-  // 短名：字间隔角度 ≤30°；长名：扩大半径，直到整圈能在字不重叠的情况下写完名称。
-  _meteorRing(title, fontSize) {
-    const w = fontSize; // 字宽≈字号（中文方块字，略保守防重叠）
-    const n = title.length;
-    let step = 30 * DEG; // 字间隔上限 30°
-    let R = w / (2 * Math.sin(step / 2)); // 弦长=字宽 → 30° 间隔下恰好不重叠
-    if ((n - 1) * step > Math.PI * 2) {
-      // 长名：绕满一圈，扩大半径使相邻字弦长=字宽
-      step = (Math.PI * 2) / (n - 1);
-      R = w / (2 * Math.sin(step / 2));
-    }
-    const pts = [];
-    for (let i = 0; i < n; i += 1) {
-      const a = -Math.PI / 2 + i * step; // 首字正上方，顺时针（canvas 正角=顺时针）
-      pts.push({ dx: Math.cos(a) * R, dy: Math.sin(a) * R });
-    }
-    return pts;
-  }
-
   // 切换连线风格（校验 key）
   setEdgeMode(mode) {
     if (!EDGE_MODES.some((m) => m.key === mode)) return;
@@ -190,18 +170,18 @@ export class StarMapRenderer extends CanvasStage {
       const p = this.posOf(id);
       if (!p) continue;
       const r = this.nodeRadius(id) + 4 / this.camera.scale;
-      // 流星节点同时命中「家位置」与当前流星头位置（家位置常驻可点）
-      const candidates = [{ x: p.x, y: p.y }];
+      // 流星即节点、无固定星位：只命中当前流星头位置；其余节点命中家位置
+      let px = p.x;
+      let py = p.y;
       if (this._isMeteor(id)) {
         const off = this._meteorOffset(id);
-        candidates.push({ x: p.x + off.x, y: p.y + off.y });
+        px = p.x + off.x;
+        py = p.y + off.y;
       }
-      for (const c of candidates) {
-        const d = Math.hypot(w.x - c.x, w.y - c.y);
-        if (d <= r && d < bestDist) {
-          best = id;
-          bestDist = d;
-        }
+      const d = Math.hypot(w.x - px, w.y - py);
+      if (d <= r && d < bestDist) {
+        best = id;
+        bestDist = d;
       }
     }
     return best ? { type: 'node', id: best } : null;
@@ -413,8 +393,8 @@ export class StarMapRenderer extends CanvasStage {
     });
   }
 
-  // 相关节点流星：单向短促划过（头部状态色小星芒 + 尾部渐变淡出），首尾随 alpha 淡入淡出
-  // 家位置始终画一颗常驻星（状态色、稍小稍淡），流星划过是其动态效果——保证相关节点始终可见可点
+  // 相关节点流星（即节点本身，无固定星位）：头部状态色小星芒 + 尾部渐变淡出，
+  // 名称跟在尾迹上（首字靠近流星头、字正立），首尾随 alpha 淡入淡出
   _drawMeteor(id, p) {
     const { ctx, camera } = this;
     const m = this.meteors.get(id);
@@ -426,13 +406,6 @@ export class StarMapRenderer extends CanvasStage {
     const stateStyle = STATE_STYLE[node.state] ?? STATE_STYLE.dim;
     const r = this.nodeRadius(id);
     const alpha = this._alphaOf(id) * st.alpha;
-
-    // 常驻家星（流星飞行轨迹之外，节点始终可见；悬停时画白环）
-    this.drawStarNode(node, p.x, p.y, r * 0.75, {
-      hover: id === this.hoverId,
-      center: false,
-      alphaScale: this._alphaOf(id) * 0.55,
-    });
 
     // 尾迹：沿运动反方向渐变（紫罗兰，暗示「相关」；随亮度淡出）
     const tailLen = this.meteorTail / Math.sqrt(camera.scale); // 屏幕恒定尾迹长度
@@ -475,18 +448,21 @@ export class StarMapRenderer extends CanvasStage {
       ctx.restore();
     }
 
-    // 名称环：圆心=流星中心（家位置），首字在星正上方、顺时针、字始终正立
+    // 名称跟在尾迹上：首字靠近流星头，沿运动反方向（尾迹方向）排布，字始终正立
     const title = node.title ?? id;
-    const pts = this._meteorRing(title, 13);
+    const headR = r * 0.85;
+    const gap = 13; // 字间距≈字号（中文方块字）
+    const nameAlpha = this._alphaOf(id) * st.alpha;
     ctx.save();
+    ctx.globalAlpha = nameAlpha;
     ctx.font = '13px system-ui, "PingFang SC", "Microsoft YaHei", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.globalAlpha = this._alphaOf(id);
-    const ringFill = node.state === 'dim' ? 'rgba(170,180,210,0.8)' : 'rgba(226,232,255,0.92)';
-    ctx.fillStyle = ringFill;
-    for (let i = 0; i < pts.length; i += 1) {
-      ctx.fillText(title[i], p.x + pts[i].dx, p.y + pts[i].dy);
+    ctx.fillStyle = node.state === 'dim' ? 'rgba(170,180,210,0.85)' : 'rgba(226,232,255,0.95)';
+    const start = headR + gap * 0.6; // 首字中心距流星头
+    for (let i = 0; i < title.length; i += 1) {
+      const d = start + i * gap;
+      ctx.fillText(title[i], hx - m.tangent.x * d, hy - m.tangent.y * d);
     }
     ctx.restore();
   }
@@ -580,7 +556,7 @@ export class StarMapRenderer extends CanvasStage {
   _drawLabels() {
     const { camera } = this;
     for (const [id, p] of this.layout.pos) {
-      if (this._isMeteor(id)) continue; // 流星名称以「名称环」绘制，见 _drawMeteor
+      if (this._isMeteor(id)) continue; // 流星名称沿尾迹绘制，见 _drawMeteor
       const pos = this.posOf(id); // 流星节点标签固定在家位置（不随流星头移动/淡出）
       if (!pos) continue;
       const isCenter = id === this.centerId;
