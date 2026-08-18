@@ -92,13 +92,22 @@ export class StarMapRenderer extends CanvasStage {
   }
 
   // ---- 相关节点流星（左右区，无连线）----
+  // 规则：存在连线（前置/后续主干边）的节点不生成流星，保持静态星；仅「纯相关」节点以流星呈现。
   // 轨迹：沿所在环切线方向的一条直线，从屏幕外飞入、穿过节点位置、再飞出屏幕（真正的流星），
   // 中段满亮、两端淡出（屏幕外）。屏幕速度恒定 = METEOR_PX_PER_S（3 秒走 1 厘米），与缩放无关。
   _rebuildMeteors() {
     this.meteors.clear();
     this.meteorTime = 0;
+    // 有连线的节点集合（related 边不连线，不算）
+    const hasLine = new Set();
+    for (const e of this.layout?.edges ?? []) {
+      if (e.kind === 'related') continue;
+      hasLine.add(e.from);
+      hasLine.add(e.to);
+    }
     for (const [id, p] of this.layout?.pos ?? []) {
       if (p.sector !== 'left' && p.sector !== 'right') continue;
+      if (hasLine.has(id)) continue; // 存在连线 → 不生成流星
       const a = (p.angle ?? Math.atan2(p.y, p.x)) * DEG;
       const rand = mulberry32(hashStr(id));
       this.meteors.set(id, {
@@ -143,6 +152,26 @@ export class StarMapRenderer extends CanvasStage {
   // 推进流星动画（StarMap.vue 的 rAF 循环调用）
   tickMeteors(dt) {
     this.meteorTime += Math.min(dt, 1 / 30);
+  }
+
+  // 流星名称环：圆心=流星中心（家位置），首字在星正上方、顺时针排布、字始终正立。
+  // 短名：字间隔角度 ≤30°；长名：扩大半径，直到整圈能在字不重叠的情况下写完名称。
+  _meteorRing(title, fontSize) {
+    const w = fontSize; // 字宽≈字号（中文方块字，略保守防重叠）
+    const n = title.length;
+    let step = 30 * DEG; // 字间隔上限 30°
+    let R = w / (2 * Math.sin(step / 2)); // 弦长=字宽 → 30° 间隔下恰好不重叠
+    if ((n - 1) * step > Math.PI * 2) {
+      // 长名：绕满一圈，扩大半径使相邻字弦长=字宽
+      step = (Math.PI * 2) / (n - 1);
+      R = w / (2 * Math.sin(step / 2));
+    }
+    const pts = [];
+    for (let i = 0; i < n; i += 1) {
+      const a = -Math.PI / 2 + i * step; // 首字正上方，顺时针（canvas 正角=顺时针）
+      pts.push({ dx: Math.cos(a) * R, dy: Math.sin(a) * R });
+    }
+    return pts;
   }
 
   // 切换连线风格（校验 key）
@@ -445,6 +474,21 @@ export class StarMapRenderer extends CanvasStage {
       ctx.stroke();
       ctx.restore();
     }
+
+    // 名称环：圆心=流星中心（家位置），首字在星正上方、顺时针、字始终正立
+    const title = node.title ?? id;
+    const pts = this._meteorRing(title, 13);
+    ctx.save();
+    ctx.font = '13px system-ui, "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.globalAlpha = this._alphaOf(id);
+    const ringFill = node.state === 'dim' ? 'rgba(170,180,210,0.8)' : 'rgba(226,232,255,0.92)';
+    ctx.fillStyle = ringFill;
+    for (let i = 0; i < pts.length; i += 1) {
+      ctx.fillText(title[i], p.x + pts[i].dx, p.y + pts[i].dy);
+    }
+    ctx.restore();
   }
 
   // 边叠加层：仅画当前邻域内存在的边（无向匹配 pairSet）
@@ -536,6 +580,7 @@ export class StarMapRenderer extends CanvasStage {
   _drawLabels() {
     const { camera } = this;
     for (const [id, p] of this.layout.pos) {
+      if (this._isMeteor(id)) continue; // 流星名称以「名称环」绘制，见 _drawMeteor
       const pos = this.posOf(id); // 流星节点标签固定在家位置（不随流星头移动/淡出）
       if (!pos) continue;
       const isCenter = id === this.centerId;
