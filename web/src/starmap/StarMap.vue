@@ -74,6 +74,14 @@ function ringStep() {
   return Math.max(110, Math.min(w, h) / 2 / 3.1) * dev.settings.ringStep;
 }
 
+// 页面长宽比拉伸（短边为 1）：宽屏 → x 拉伸，竖屏 → y 拉伸
+function aspectStretch() {
+  const w = wrap.value?.clientWidth || 800;
+  const h = wrap.value?.clientHeight || 600;
+  const m = Math.min(w, h);
+  return { x: w / m, y: h / m };
+}
+
 // 把开发者模式可调参数应用到渲染器
 function applyDevSettings() {
   if (!renderer) return;
@@ -96,10 +104,13 @@ function currentDisplayedPos() {
 }
 
 function computeFitCamera() {
-  const w = wrap.value.clientWidth;
-  const h = wrap.value.clientHeight;
-  const reach = ringStep() * 2 + 60;
-  return { x: 0, y: 0, scale: Math.min(1.15, Math.max(0.22, Math.min(w, h) / 2 / reach)) };
+  const w = wrap.value?.clientWidth || 800;
+  const h = wrap.value?.clientHeight || 600;
+  const base = ringStep() * 2; // 最长环半径（未拉伸）
+  const { x: sx, y: sy } = aspectStretch();
+  // 按拉伸后的椭圆包围盒适配：铺满视口 88%（留边），长宽比随页面变化
+  const scale = Math.min((w * 0.88) / (2 * base * sx), (h * 0.88) / (2 * base * sy));
+  return { x: 0, y: 0, scale: Math.min(2, Math.max(0.22, scale)) };
 }
 
 const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
@@ -113,8 +124,10 @@ function rebuild({ fit = false } = {}) {
     edges: props.edges,
     ringStep: ringStep(),
     nav: { nextId: props.navNextId, prevId: props.navPrevId },
+    stretch: aspectStretch(),
   });
   renderer.navNextId = props.navNextId;
+  renderer.stretch = aspectStretch();
   const prevPos = currentDisplayedPos();
   const prevCenter = renderer.centerId;
   const camTarget = computeFitCamera();

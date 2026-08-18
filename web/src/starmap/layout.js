@@ -57,8 +57,11 @@ export function distributeAngles(count, lo, hi, cuts = []) {
   return out;
 }
 
-export function computeLayout({ centerId, nodes, edges, ringStep = 160, nav = null }) {
+export function computeLayout({ centerId, nodes, edges, ringStep = 160, nav = null, stretch = null }) {
   const nodesById = new Map(nodes.map((n) => [n.id, n]));
+  // 整体长宽比拉伸：适应页面宽高比（stretch = { x: 宽/短边, y: 高/短边 }；null 时不拉伸=圆形）
+  const sx = stretch?.x ?? 1;
+  const sy = stretch?.y ?? 1;
 
   // 邻接表（双向，排序保证确定性）
   const adj = new Map(nodes.map((n) => [n.id, []]));
@@ -193,8 +196,8 @@ export function computeLayout({ centerId, nodes, edges, ringStep = 160, nav = nu
     for (const id of ringNodes) {
       const p = pos.get(id);
       const a = p.angle * DEG;
-      p.x = Math.cos(a) * r;
-      p.y = Math.sin(a) * r;
+      p.x = Math.cos(a) * r * sx; // 按页面长宽比拉伸（宽屏→横向椭圆，竖屏→纵向椭圆）
+      p.y = Math.sin(a) * r * sy;
     }
   }
 

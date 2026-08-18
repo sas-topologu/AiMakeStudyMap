@@ -55,6 +55,7 @@ export class StarMapRenderer extends CanvasStage {
     this.nodeScale = 1; // 节点大小倍率
     this.centerFontScale = 1; // 中心视图字号倍率
     this.edgeScale = 1; // 连线粗细倍率
+    this.stretch = null; // 页面长宽比拉伸 { x, y }（参考环线用）
   }
 
   // 当前应使用的节点坐标（动画中读动态值，否则读布局）
@@ -290,6 +291,8 @@ export class StarMapRenderer extends CanvasStage {
 
   _drawGuides() {
     const { ctx } = this;
+    const sx = this.stretch?.x ?? 1;
+    const sy = this.stretch?.y ?? 1;
     const L = 4000;
     ctx.save();
     ctx.strokeStyle = 'rgba(148,163,255,0.07)';
@@ -303,16 +306,16 @@ export class StarMapRenderer extends CanvasStage {
       ctx.lineTo(x2, y2);
       ctx.stroke();
     }
-    // 同心环参考线（半径取该环任一节点到中心的距离）
+    // 同心环参考线（按页面长宽比画椭圆；半径取该环任一节点的未拉伸半径）
     const ringRadius = new Map();
     for (const [id, p] of this.layout.pos) {
       const d = this.layout.depth.get(id);
-      if (d > 0 && !ringRadius.has(d)) ringRadius.set(d, Math.hypot(p.x, p.y));
+      if (d > 0 && !ringRadius.has(d)) ringRadius.set(d, Math.hypot(p.x / sx, p.y / sy));
     }
     ctx.strokeStyle = 'rgba(148,163,255,0.05)';
     for (const r of ringRadius.values()) {
       ctx.beginPath();
-      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, r * sx, r * sy, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.restore();
