@@ -59,7 +59,7 @@ export function layoutWorld(subjects, nodes, edges) {
     const localEdges = edges.filter(
       (e) => e.type === 'prerequisite' && ids.has(e.from) && ids.has(e.to),
     );
-    const pos = layoutConstellation(list, localEdges, { ringStep: 72 });
+    const pos = layoutConstellation(list, localEdges, { ringStep: 72, minDist: 40 });
     let rMax = 0;
     for (const p of pos.values()) rMax = Math.max(rMax, Math.hypot(p.x, p.y));
     locals.set(subj, { pos, r: Math.max(40, rMax + 18) });
@@ -150,9 +150,18 @@ function packCircle(placed, r, gap) {
 // ---- 星座视图（蛛网布局）----
 // 基础概念靠近中心，前沿逐步向外辐射（仿蛛网）：
 //   无前置的基础节点（layer 0）在中心小圆均布（单基础则在圆心）；
-//   第 L 层节点分布在半径 coreR + L*ringStep 的环上；
+//   第 L 层节点分布在半径 ≥ 内层 + ringStep 的环上；
 //   子节点角度继承主父节点扇区（连线短、不交叉）；related 不参与定位；确定性。
-export function layoutConstellation(nodes, edges, { ringStep = 75, coreR = 30 } = {}) {
+//
+// 间距自适应（minDist，世界单位）：解决「部分区域过密、部分过空」——
+//   1) 同层弧长间距 ≥ minDist：每层半径 r[L] = max(内层 + ringStep, minDist / 最小角间距)，
+//      节点多的层自动放大半径，节点少的层不再被固定环半径撑出巨大弧长；
+//   2) 组扇区改为 Voronoi 划分（相邻组边界 = 父角度中点，瓜分整圆）：
+//      组间永不重叠、不留死角，节点少的层也均匀铺开而非聚成一簇；
+//   3) 层间径向间距 ≥ ringStep（≥ minDist），轮辐处不再叠罗汉。
+// minDist 基准换算：节点档标题字号 11px（屏幕恒定）× 5 字 ≈ 55px 屏幕；
+// 节点档最低完整显示 scale = 1.4 → 55 / 1.4 ≈ 39.3，取 40 世界单位。
+export function layoutConstellation(nodes, edges, { ringStep = 75, coreR = 30, minDist = 40 } = {}) {
   const ids = new Set(nodes.map((n) => n.id));
   // 前置关系（仅限学科内、prerequisite 边；related 不参与定位）
   const prereqsOf = new Map([...ids].map((id) => [id, []]));
@@ -186,15 +195,26 @@ export function layoutConstellation(nodes, edges, { ringStep = 75, coreR = 30 } 
   for (const id of ids) if (!layer.has(id)) layer.set(id, 0);
   const maxLayer = Math.max(0, ...layer.values());
 
-  // 角度分配：layer 0 均布中心小圆；每层子节点继承主父角度扇区
+  // 角度分配：layer 0 均布中心小圆；每层子节点继承主父角度扇区（Voronoi 组扇区）
   const angle = new Map();
   const layer0 = [...ids].filter((id) => layer.get(id) === 0).sort();
-  layer0.forEach((id, i) => angle.set(id, (Math.PI * 2 * i) / layer0.length));
+  layer0.forEach((id, i) => angle.set(id, (Math.PI * 2 * i) / Math.max(1, layer0.length)));
+
+  // 各层环半径（自适应）：layer0 由基础节点数定；深层由「内层 + ringStep」与
+  // 「minDist / 弦长因子」取大，保证同层节点**欧氏距离（弦长）≥ minDist**。
+  // 弦长 = 2r·sin(Δθ/2)（Δθ 为该层最小角间距），故 r ≥ minDist / (2·sin(Δθ/2))；
+  // 单节点层 Δθ=2π → 因子为 0，无需约束。
+  const rad = new Map();
+  if (layer0.length > 1) {
+    const f0 = 2 * Math.sin(Math.PI / layer0.length); // 相邻基础节点角距 2π/n0 的弦因子
+    rad.set(0, Math.max(coreR, f0 > 1e-9 ? minDist / f0 : 0));
+  } else {
+    rad.set(0, 0);
+  }
 
   const norm = (a) => ((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
   for (let L = 1; L <= maxLayer; L += 1) {
     const cur = [...ids].filter((id) => layer.get(id) === L).sort();
-    const unit = (Math.PI * 2) / cur.length; // 该层每个节点的基础扇区
     const groups = new Map(); // 主父 id -> [子节点]（主父 = 字典序最小且已有角度的前置）
     const orphans = [];
     for (const id of cur) {
@@ -206,24 +226,53 @@ export function layoutConstellation(nodes, edges, { ringStep = 75, coreR = 30 } 
         orphans.push(id);
       }
     }
-    // 组以父角度为中心，子节点在 ±扇区内均布（扇区宽 = 节点数×基础扇区×0.92 留缝）
-    for (const [parent, kids] of groups) {
-      const c = angle.get(parent);
-      const w = kids.length * unit * 0.92;
-      kids.forEach((id, i) => {
-        const a = c + (i - (kids.length - 1) / 2) * (w / kids.length);
-        angle.set(id, norm(a));
+    // 组按父角度升序（并列按父 id，保证确定性），组间 Voronoi 边界 = 相邻父角度中点：
+    // 组 i 可用扇区 [left_i, right_i]，组内均布 → 组间无重叠、无死角。
+    const gList = [...groups.entries()].map(([parent, kids]) => ({
+      parent,
+      kids,
+      a: angle.get(parent),
+    }));
+    gList.sort((x, y) => (x.a !== y.a ? x.a - y.a : x.parent < y.parent ? -1 : 1));
+    const k = gList.length;
+    const bounds = [];
+    for (let i = 0; i < k; i += 1) {
+      const a = gList[i].a;
+      const b = gList[(i + 1) % k].a;
+      bounds.push(i === k - 1 ? (a + b + Math.PI * 2) / 2 : (a + b) / 2);
+    }
+    for (let i = 0; i < k; i += 1) {
+      const left = i === 0 ? bounds[k - 1] - Math.PI * 2 : bounds[i - 1];
+      const right = bounds[i];
+      const n = gList[i].kids.length;
+      gList[i].kids.forEach((id, j) => {
+        angle.set(id, norm(left + ((j + 0.5) / n) * (right - left)));
       });
     }
-    // 无父节点（数据异常兜底）：均分剩余整圆
-    orphans.forEach((id, i) => angle.set(id, norm((Math.PI * 2 * i) / orphans.length + 0.3)));
+    // 无父节点（数据异常兜底）：聚在最后一个组边界之后的小扇区，不占整圆
+    if (orphans.length) {
+      const base = norm(bounds[k - 1] ?? 0);
+      orphans.forEach((id, i) => angle.set(id, norm(base + (i + 0.5) * 0.08)));
+    }
+
+    // 该层最小角间距（排序后相邻差，含首尾 wrap）→ 决定环半径下限（弦长 ≥ minDist）
+    const angs = cur.map((id) => angle.get(id)).sort((a, b) => a - b);
+    let gap = Infinity;
+    for (let i = 0; i < angs.length; i += 1) {
+      const d = i === angs.length - 1 ? angs[0] + Math.PI * 2 - angs[i] : angs[i + 1] - angs[i];
+      if (d > 1e-9) gap = Math.min(gap, d);
+    }
+    if (!Number.isFinite(gap) || gap <= 0) gap = Math.PI * 2;
+    const chordFactor = 2 * Math.sin(gap / 2); // 弦长 = r * chordFactor
+    const rNeed = minDist > 0 && chordFactor > 1e-9 ? minDist / chordFactor : 0;
+    rad.set(L, Math.max((rad.get(L - 1) ?? 0) + ringStep, rNeed));
   }
 
-  // 极坐标 → 笛卡尔：layer 0 在中心小圆（多基础）或圆心；其余层在 coreR + L*ringStep 环上
+  // 极坐标 → 笛卡尔：layer 0 在中心小圆（多基础）或圆心；其余层在自适应半径环上
   const pos = new Map();
   for (const id of ids) {
     const l = layer.get(id);
-    const r = l === 0 ? (layer0.length > 1 ? coreR : 0) : coreR + l * ringStep;
+    const r = rad.get(l) ?? 0;
     const a = angle.get(id) ?? 0;
     pos.set(id, { x: Math.cos(a) * r, y: Math.sin(a) * r, layer: l });
   }

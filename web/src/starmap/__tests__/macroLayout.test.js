@@ -79,6 +79,46 @@ describe('layoutConstellation', () => {
     expect(Number.isFinite(pos.get('A').x)).toBe(true);
     expect(Number.isFinite(pos.get('B').y)).toBe(true);
   });
+
+  it('最小间距：同层节点两两距离 ≥ minDist（节点多时环半径自适应放大）', () => {
+    // 一个父 + 24 个子 → 同层弧长若按固定环半径会被压到远小于 40，新逻辑放大半径
+    const nodes = [N('A'), ...Array.from({ length: 24 }, (_, i) => N(`C${String(i).padStart(2, '0')}`))];
+    const edges = Array.from({ length: 24 }, (_, i) => PRE(`C${String(i).padStart(2, '0')}`, 'A'));
+    const pos = layoutConstellation(nodes, edges, { ringStep: 60, minDist: 40 });
+    const cs = Array.from({ length: 24 }, (_, i) => pos.get(`C${String(i).padStart(2, '0')}`));
+    for (let i = 0; i < cs.length; i += 1) {
+      for (let j = i + 1; j < cs.length; j += 1) {
+        const d = Math.hypot(cs[i].x - cs[j].x, cs[i].y - cs[j].y);
+        expect(d).toBeGreaterThanOrEqual(40 * 0.98);
+      }
+    }
+    // 且子节点与中心父节点保持径向间距 ≥ ringStep
+    for (const c of cs) {
+      expect(Math.hypot(c.x, c.y)).toBeGreaterThanOrEqual(60 * 0.98);
+    }
+  });
+
+  it('Voronoi 组扇区：多个父节点时组间不重叠（节点分散均匀而非聚簇）', () => {
+    // 两个父（角度相对）+ 各 3 个子；子组应落在各自父角度一侧且互不侵入
+    const nodes = [
+      N('P1'), N('P2'), N('Q1'), N('Q2'), N('Q3'), N('Q4'), N('Q5'), N('Q6'),
+    ];
+    const edges = [
+      PRE('Q1', 'P1'), PRE('Q2', 'P1'), PRE('Q3', 'P1'),
+      PRE('Q4', 'P2'), PRE('Q5', 'P2'), PRE('Q6', 'P2'),
+    ];
+    const pos = layoutConstellation(nodes, edges, { ringStep: 70, minDist: 40 });
+    const aP1 = Math.atan2(pos.get('P1').y, pos.get('P1').x);
+    const aP2 = Math.atan2(pos.get('P2').y, pos.get('P2').x);
+    const nearP1 = ['Q1', 'Q2', 'Q3'].map((id) => Math.abs(
+      ((Math.atan2(pos.get(id).y, pos.get(id).x) - aP1 + Math.PI * 3) % (Math.PI * 2)) - Math.PI,
+    ));
+    const nearP2 = ['Q4', 'Q5', 'Q6'].map((id) => Math.abs(
+      ((Math.atan2(pos.get(id).y, pos.get(id).x) - aP2 + Math.PI * 3) % (Math.PI * 2)) - Math.PI,
+    ));
+    for (const d of nearP1) expect(d).toBeLessThan(Math.PI / 2);
+    for (const d of nearP2) expect(d).toBeLessThan(Math.PI / 2);
+  });
 });
 
 describe('longestChain', () => {
