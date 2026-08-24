@@ -392,4 +392,58 @@ describe('API 集成', () => {
     const res = await agent.get('/api/profile/export');
     expect(res.status).toBe(401);
   });
+
+  it('AI 图谱读取：公开可读全量节点（含摘要），带 token 时标注状态', async () => {
+    const token = await registerUser('agent0');
+    await agent.post('/api/jump').set(auth(token)).send({ nodeId: 't.a' }); // t.a 变 open
+    const anon = await agent.get('/api/agent/graph');
+    expect(anon.status).toBe(200);
+    expect(anon.body.nodes).toHaveLength(5);
+    expect(anon.body.nodes[0]).toHaveProperty('summary'); // Agent 规划需摘要
+    expect(anon.body.nodes[0]).not.toHaveProperty('state'); // 匿名无状态
+    expect(anon.body.edges.length).toBeGreaterThan(0);
+    expect(anon.body.edges[0]).toHaveProperty('from');
+    expect(anon.body.edges[0]).toHaveProperty('type');
+
+    const authed = await agent.get('/api/agent/graph').set(auth(token));
+    const a = authed.body.nodes.find((n) => n.id === 't.a');
+    expect(a.state).toBe('open'); // 带 token 标注用户状态
+  });
+
+  it('AI 定制地图：目标前置闭包，剔除已点亮与 related，仅 prerequisite', async () => {
+    const token = await registerUser('agent1');
+    const { id: uid } = await agent.get('/api/auth/me').set(auth(token)).then((r) => r.body.user);
+    // t.e 已点亮（已掌握）→ 定制 t.e 的目标应剔除；前置链 t.a~t.d 保留
+    db.prepare(
+      "INSERT INTO user_node_state (user_id, node_id, state, updated_at) VALUES (?,?,?,?)"
+    ).run(uid, 't.e', 'lit', new Date().toISOString());
+
+    const res = await agent
+      .post('/api/agent/plan')
+      .set(auth(token))
+      .send({ target: 't.e' });
+    expect(res.status).toBe(200);
+    expect(res.body.target).toBe('t.e');
+    expect(res.body.targetTitle).toBe('t.e 标题');
+    // 排除已点亮的 t.e
+    expect(res.body.nodes.map((n) => n.id)).not.toContain('t.e');
+    // 保留前置链 t.a/t.b/t.c/t.d
+    expect(res.body.nodes.map((n) => n.id).sort()).toEqual(['t.a', 't.b', 't.c', 't.d']);
+    // 边均为 prerequisite
+    expect(res.body.edges.every((e) => e.type === 'prerequisite')).toBe(true);
+  });
+
+  it('AI 定制地图：目标未点亮时包含目标节点；未知目标返回 404', async () => {
+    const token = await registerUser('agent2');
+    // 目标 t.c 未点亮 → 保留 t.c；前置链 t.a/t.b 保留
+    const res = await agent
+      .post('/api/agent/plan')
+      .set(auth(token))
+      .send({ target: 't.c' });
+    expect(res.status).toBe(200);
+    expect(res.body.nodes.map((n) => n.id).sort()).toEqual(['t.a', 't.b', 't.c']);
+    // 未知目标 → 404
+    const missing = await agent.post('/api/agent/plan').set(auth(token)).send({ target: '不存在' });
+    expect(missing.status).toBe(404);
+  });
 });

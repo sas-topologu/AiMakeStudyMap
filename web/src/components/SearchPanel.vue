@@ -91,6 +91,27 @@
           </button>
         </div>
       </div>
+
+      <!-- AI 辅助路线规划：讲述要掌握的技能 → 生成定制学习地图 -->
+      <div v-if="!aiMap" class="ai-plan">
+        <div class="ai-plan-head">
+          <b>AI 辅助路线规划</b>
+          <span class="muted">讲述要掌握的技能，生成定制学习地图（只含需掌握、未点亮的前置链）</span>
+        </div>
+        <div class="dialog-actions left">
+          <input
+            v-model.trim="aiTarget"
+            class="input"
+            placeholder="如：强化学习 / 泛函分析 / 卫星遥感"
+            @keyup.enter="doAiPlan"
+          />
+          <button class="btn primary" :disabled="aiPlanning" @click="doAiPlan">
+            {{ aiPlanning ? '规划中…' : '生成定制地图' }}
+          </button>
+        </div>
+        <p v-if="aiError" class="error-text">{{ aiError }}</p>
+      </div>
+      <AiRouteMap v-else :map="aiMap" @close="aiMap = null" @replan="aiMap = null" />
     </div>
   </div>
 </template>
@@ -103,6 +124,7 @@ import { useAuthStore } from '../stores/auth.js';
 import { useStarmapStore } from '../stores/starmap.js';
 import { useUiStore } from '../stores/ui.js';
 import { useNavStore, ROUTE_TYPES } from '../stores/navigation.js';
+import AiRouteMap from './AiRouteMap.vue';
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -130,6 +152,10 @@ const navType = ref('shortest');
 const routing = ref(false);
 const routeError = ref('');
 const noRoute = ref(false);
+const aiTarget = ref('');
+const aiPlanning = ref(false);
+const aiError = ref('');
+const aiMap = ref(null);
 const inputEl = ref(null);
 let debounceTimer = null;
 
@@ -151,6 +177,9 @@ watch(
       navChoosing.value = false;
       routeError.value = '';
       noRoute.value = false;
+      aiTarget.value = '';
+      aiError.value = '';
+      aiMap.value = null;
       await nextTick();
       inputEl.value?.focus();
     }
@@ -263,6 +292,22 @@ async function doJump() {
     jumpError.value = e.code === 'NO_QUOTA' ? '跃迁额度不足（每月赠 1 点、上限 2 点）' : e.message;
   } finally {
     jumping.value = false;
+  }
+}
+
+// AI 辅助路线规划：输入要掌握的技能 → 后端定制学习地图（prerequisite 前置链，剔除已点亮/相关）
+async function doAiPlan() {
+  if (!aiTarget.value) return;
+  aiPlanning.value = true;
+  aiError.value = '';
+  try {
+    const data = await api.agentPlan(aiTarget.value);
+    aiMap.value = data;
+    ui.toast(`已生成定制地图：${data.nodes.length} 个待掌握节点`, 'success');
+  } catch (e) {
+    aiError.value = e.message;
+  } finally {
+    aiPlanning.value = false;
   }
 }
 </script>

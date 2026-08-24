@@ -83,6 +83,9 @@ export const api = {
   navRoute: (from, to, type) =>
     request(`/nav/route?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&type=${type}`),
   navHot: () => request('/nav/hot'),
+  // AI 辅助路线规划
+  agentGraph: () => request('/agent/graph'),
+  agentPlan: (target) => request('/agent/plan', { method: 'POST', body: { target } }),
   // 社交：讨论区 / 纪念碑 / 速通榜
   monument: (id) => request(`/nodes/${encodeURIComponent(id)}/monument`),
   leaveMonument: (id, message) =>

@@ -1182,6 +1182,61 @@ code {
   gap: 8px;
 }
 
+/* ---- AI 辅助路线规划 ---- */
+.ai-plan {
+  margin-top: 12px;
+  border-top: 1px solid var(--panel-border);
+  padding-top: 10px;
+}
+
+.ai-plan-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ai-plan-head + div .input {
+  flex: 1;
+}
+
+.ai-map {
+  margin-top: 12px;
+  border-top: 1px solid var(--panel-border);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-map-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ai-map-head .muted {
+  font-size: 12px;
+}
+
+.ai-map-hint {
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.ai-map-canvas {
+  position: relative;
+  height: 400px;
+  margin-top: 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.ai-map-canvas .starmap-wrap {
+  position: absolute;
+  inset: 0;
+}
+
 .nav-type-option {
   display: flex;
   align-items: baseline;
