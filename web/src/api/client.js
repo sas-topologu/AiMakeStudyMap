@@ -104,6 +104,8 @@ export const api = {
   // 星图分享
   shareCreate: (config) => request('/share', { method: 'POST', body: { config } }),
   shareGet: (id) => request(`/share/${encodeURIComponent(id)}`),
+  // 个人数据导出（个人知识画像文档）
+  profileExport: () => request('/profile/export'),
   // 勘误 / 更新日志
   submitCorrection: (nodeId, body) =>
     request(`/nodes/${encodeURIComponent(nodeId)}/corrections`, { method: 'POST', body: { body } }),

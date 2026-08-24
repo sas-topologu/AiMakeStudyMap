@@ -296,4 +296,100 @@ describe('API 集成', () => {
     expect(all.body.nodes).toHaveLength(5);
     expect(all.body.nodes[0]).not.toHaveProperty('summary');
   });
+
+  it('个人数据导出：空账号返回骨架（全节点未学、空内容列表）', async () => {
+    const token = await registerUser('profile0');
+    const res = await agent.get('/api/profile/export').set(auth(token));
+    expect(res.status).toBe(200);
+    expect(res.body.user.username).toBe('profile0');
+    expect(res.body.nodes).toHaveLength(5); // 全部节点，未学 state 为 null
+    expect(res.body.nodes.every((n) => n.state === null)).toBe(true);
+    expect(res.body.usage.daily).toEqual([]);
+    expect(res.body.posts).toEqual([]);
+    expect(res.body.replies).toEqual([]);
+    expect(res.body.monument).toEqual([]);
+    expect(res.body.creations).toEqual([]);
+    expect(res.body.corrections).toEqual([]);
+    expect(res.body.shares).toEqual([]);
+    expect(res.body.generatedAt).toBeTruthy();
+  });
+
+  it('个人数据导出：汇总闯关进度/学习时长/发布内容/分享', async () => {
+    const token = await registerUser('profile1');
+    const { id: uid } = await agent.get('/api/auth/me').set(auth(token)).then((r) => r.body.user);
+    const iso = new Date().toISOString();
+    // 直接造数据（状态/时长/社交/分享）
+    db.prepare(
+      "INSERT INTO user_node_state (user_id, node_id, state, pass_seconds, lit_at, updated_at) VALUES (?,?,?,?,?,?)"
+    ).run(uid, 't.a', 'lit', 300, iso, iso);
+    db.prepare(
+      "INSERT INTO user_node_state (user_id, node_id, state, updated_at) VALUES (?,?,?,?)"
+    ).run(uid, 't.b', 'passed', iso);
+    db.prepare(
+      "INSERT INTO user_node_state (user_id, node_id, state, updated_at) VALUES (?,?,?,?)"
+    ).run(uid, 't.c', 'open', iso);
+    db.prepare(
+      "INSERT INTO daily_usage (user_id, day, seconds) VALUES (?, '2026-08-01', 1800)"
+    ).run(uid);
+    db.prepare(
+      "INSERT INTO daily_usage (user_id, day, seconds) VALUES (?, '2026-08-02', 900)"
+    ).run(uid);
+    const post = db.prepare(
+      "INSERT INTO posts (node_id, user_id, title, body, created_at) VALUES ('t.a', ?, '我的第一帖', '分享笔记：勾股定理证明', ?)"
+    ).run(uid, iso);
+    db.prepare(
+      "INSERT INTO replies (post_id, user_id, body, created_at) VALUES (?, ?, '回复自己帖：补充', ?)"
+    ).run(post.lastInsertRowid, uid, iso);
+    // 他人帖子下我的回复
+    const other = db.prepare(
+      "INSERT INTO posts (node_id, user_id, title, body, created_at) VALUES ('t.b', ?, '他人帖', '内容', ?)"
+    ).run(uid === 1 ? 2 : 1, iso); // 需要第二个用户
+    db.prepare(
+      "INSERT INTO replies (post_id, user_id, body, created_at) VALUES (?, ?, '我评他人帖', ?)"
+    ).run(other.lastInsertRowid, uid, iso);
+    db.prepare(
+      "INSERT INTO pioneers (node_id, user_id, message, created_at) VALUES ('t.a', ?, '拓荒纪念', ?)"
+    ).run(uid, iso);
+    db.prepare(
+      "INSERT INTO creations (node_id, user_id, type, title, content, status, created_at) VALUES ('t.a', ?, 'summary', '我的总结', '全文内容', 'approved', ?)"
+    ).run(uid, iso);
+    db.prepare(
+      "INSERT INTO corrections (node_id, user_id, body, status, created_at) VALUES ('t.a', ?, '建议修正措辞', 'pending', ?)"
+    ).run(uid, iso);
+    db.prepare(
+      "INSERT INTO shares (id, user_id, config_json, created_at) VALUES ('abc123', ?, '{\"theme\":\"default\"}', ?)"
+    ).run(uid, iso);
+
+    const res = await agent.get('/api/profile/export').set(auth(token));
+    expect(res.status).toBe(200);
+    // 进度
+    const byId = Object.fromEntries(res.body.nodes.map((n) => [n.id, n]));
+    expect(byId['t.a']).toMatchObject({ state: 'lit', passSeconds: 300 });
+    expect(byId['t.b'].state).toBe('passed');
+    expect(byId['t.c'].state).toBe('open');
+    expect(byId['t.d'].state).toBe(null);
+    // 时长
+    expect(res.body.usage.daily).toHaveLength(2);
+    expect(res.body.usage.daily[0]).toMatchObject({ day: '2026-08-01', seconds: 1800 });
+    // 讨论帖（含回复与 isMine 标注）
+    expect(res.body.posts).toHaveLength(1);
+    expect(res.body.posts[0]).toMatchObject({ title: '我的第一帖', nodeTitle: 't.a 标题' });
+    expect(res.body.posts[0].replies).toHaveLength(1);
+    expect(res.body.posts[0].replies[0].isMine).toBe(true);
+    // 他人帖下的回复
+    expect(res.body.replies).toHaveLength(1);
+    expect(res.body.replies[0].body).toBe('我评他人帖');
+    // 纪念碑 / 二创 / 勘误 / 分享
+    expect(res.body.monument).toHaveLength(1);
+    expect(res.body.creations).toHaveLength(1);
+    expect(res.body.creations[0]).toMatchObject({ title: '我的总结', status: 'approved' });
+    expect(res.body.corrections).toHaveLength(1);
+    expect(res.body.shares).toHaveLength(1);
+    expect(res.body.shares[0]).toMatchObject({ id: 'abc123', config: { theme: 'default' } });
+  });
+
+  it('个人数据导出：未登录返回 401', async () => {
+    const res = await agent.get('/api/profile/export');
+    expect(res.status).toBe(401);
+  });
 });

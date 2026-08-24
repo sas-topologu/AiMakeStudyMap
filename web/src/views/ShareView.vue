@@ -27,6 +27,9 @@
       </button>
       <button class="btn ghost" :disabled="!shareId" @click="copyLink">复制分享链接</button>
       <button class="btn ghost" :disabled="!shareId || !nodes.length" @click="downloadPng">导出 PNG</button>
+      <button class="btn ghost" :disabled="exporting" @click="downloadProfile">
+        {{ exporting ? '整理中…' : '导出个人数据文档' }}
+      </button>
     </header>
 
     <div class="share-canvas-box panel">
@@ -57,6 +60,7 @@ import { api } from '../api/client.js';
 import { useUiStore } from '../stores/ui.js';
 import ShareCanvas from '../components/ShareCanvas.vue';
 import { SHARE_THEMES } from '../starmap/shareRenderer.js';
+import { buildProfileDoc } from '../utils/profileDoc.js';
 
 const ui = useUiStore();
 
@@ -67,6 +71,7 @@ const nodes = ref([]);
 const edges = ref([]);
 const loading = ref(true);
 const creating = ref(false);
+const exporting = ref(false);
 const error = ref('');
 const canvasRef = ref(null);
 
@@ -116,6 +121,28 @@ function downloadPng() {
   a.href = dataUrl;
   a.download = `starmap-${shareId.value}.png`;
   a.click();
+}
+
+// 导出个人知识画像文档（Markdown）：闯关进度 + 学习投入 + 公开发布内容等，
+// 发给 AI 可迅速了解用户，可用于训练个人助手。
+async function downloadProfile() {
+  exporting.value = true;
+  try {
+    const data = await api.profileExport();
+    const md = buildProfileDoc(data);
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `个人知识画像-${data.user?.username ?? 'user'}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    ui.toast('已导出个人数据文档', 'success');
+  } catch (e) {
+    ui.toast(`导出失败：${e.message}`, 'error');
+  } finally {
+    exporting.value = false;
+  }
 }
 
 onMounted(createAndLoad);
