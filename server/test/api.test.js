@@ -2,10 +2,15 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import request from 'supertest';
 import { runImport } from '../../content/tools/import.js';
 import { openDatabase } from '../src/db/connection.js';
 import { createApp } from '../src/app.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// 项目根（server/test/ → 上两级）
+const ROOT = path.resolve(__dirname, '../..');
 
 // ---- 测试夹具：5 节点链 t.a ← t.b ← t.c ← t.d ← t.e ----
 function makeCard(id, { prerequisites = [], difficulty = 4 } = {}) {
@@ -442,8 +447,59 @@ describe('API 集成', () => {
       .send({ target: 't.c' });
     expect(res.status).toBe(200);
     expect(res.body.nodes.map((n) => n.id).sort()).toEqual(['t.a', 't.b', 't.c']);
-    // 未知目标 → 404
-    const missing = await agent.post('/api/agent/plan').set(auth(token)).send({ target: '不存在' });
-    expect(missing.status).toBe(404);
+    // 无对应知识卡 → 返回 missing 提示（而非 404），供前端提示用户是否让 AI 制作
+    const missing = await agent
+      .post('/api/agent/plan')
+      .set(auth(token))
+      .send({ target: '不存在技能' });
+    expect(missing.status).toBe(200);
+    expect(missing.body.missing).toBe(true);
+    expect(missing.body.query).toBe('不存在技能');
+  });
+
+  it('AI 制作规范：返回 v2.1 规范文本与模板骨架', async () => {
+    const res = await agent.get('/api/agent/spec');
+    expect(res.status).toBe(200);
+    expect(res.body.version).toBe('v2.1');
+    expect(res.body.spec).toContain('推演式制作');
+    expect(res.body.spec).toContain('知识卡制作规范');
+    expect(res.body.template).toHaveProperty('id');
+    expect(res.body.template).toHaveProperty('sections');
+    expect(res.body.template).toHaveProperty('questionBank');
+  });
+
+  it('AI 制作卡提交：合法卡入库 / 重复导入幂等 / 非法卡报错', async () => {
+    const token = await registerUser('agent3');
+    const mk = (id, pre) => makeCard(id, { prerequisites: pre ? [pre] : [], difficulty: 3 });
+
+    // 前置引用库中已有节点 t.a
+    const created = await agent
+      .post('/api/agent/cards')
+      .set(auth(token))
+      .send({ cards: [mk('x.new', 't.a')] });
+    expect(created.status).toBe(200);
+    expect(created.body.created).toEqual(['x.new']);
+    // 新节点已入库（graph/all 可见）
+    const all = await agent.get('/api/graph/all');
+    expect(all.body.nodes.some((n) => n.id === 'x.new')).toBe(true);
+    // 重复导入（同 id 新卡）→ 更新而非新增（幂等）
+    const redo = await agent
+      .post('/api/agent/cards')
+      .set(auth(token))
+      .send({ cards: [{ ...mk('x.new', 't.a'), version: 2 }] });
+    expect(redo.status).toBe(200);
+    expect(redo.body.updated).toContain('x.new');
+    // 非法卡（悬空前置引用不存在节点）→ 校验错误
+    const bad = await agent
+      .post('/api/agent/cards')
+      .set(auth(token))
+      .send({ cards: [mk('x.bad', 'not.exist')] });
+    expect(bad.status).toBe(400);
+    expect(bad.body.ok).toBe(false);
+    expect(Array.isArray(bad.body.errors)).toBe(true);
+
+    // 清理持久化到内容目录的测试卡（避免污染真实卡库）
+    const persisted = path.join(ROOT, 'content/cards/x.new.json');
+    if (fs.existsSync(persisted)) fs.rmSync(persisted);
   });
 });

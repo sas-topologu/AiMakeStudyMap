@@ -86,6 +86,8 @@ export const api = {
   // AI 辅助路线规划
   agentGraph: () => request('/agent/graph'),
   agentPlan: (target) => request('/agent/plan', { method: 'POST', body: { target } }),
+  agentSpec: () => request('/agent/spec'),
+  agentCards: (cards) => request('/agent/cards', { method: 'POST', body: { cards } }),
   // 社交：讨论区 / 纪念碑 / 速通榜
   monument: (id) => request(`/nodes/${encodeURIComponent(id)}/monument`),
   leaveMonument: (id, message) =>

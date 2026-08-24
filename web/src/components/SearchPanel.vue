@@ -93,10 +93,10 @@
       </div>
 
       <!-- AI 辅助路线规划：讲述要掌握的技能 → 生成定制学习地图 -->
-      <div v-if="!aiMap" class="ai-plan">
+      <div v-if="!aiMap && !aiMissing" class="ai-plan">
         <div class="ai-plan-head">
           <b>AI 辅助路线规划</b>
-          <span class="muted">讲述要掌握的技能，生成定制学习地图（只含需掌握、未点亮的前置链）</span>
+          <span class="muted">讲述要掌握的技能，生成定制学习地图；若缺卡可让 AI 制作</span>
         </div>
         <div class="dialog-actions left">
           <input
@@ -111,6 +111,13 @@
         </div>
         <p v-if="aiError" class="error-text">{{ aiError }}</p>
       </div>
+      <!-- 缺卡：提示是否让 AI 制作 -->
+      <AiCardFactory
+        v-else-if="aiMissing"
+        :query="aiMissing.query"
+        @close="aiMissing = null"
+        @imported="onCardImported"
+      />
       <AiRouteMap v-else :map="aiMap" @close="aiMap = null" @replan="aiMap = null" />
     </div>
   </div>
@@ -125,6 +132,7 @@ import { useStarmapStore } from '../stores/starmap.js';
 import { useUiStore } from '../stores/ui.js';
 import { useNavStore, ROUTE_TYPES } from '../stores/navigation.js';
 import AiRouteMap from './AiRouteMap.vue';
+import AiCardFactory from './AiCardFactory.vue';
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -156,6 +164,7 @@ const aiTarget = ref('');
 const aiPlanning = ref(false);
 const aiError = ref('');
 const aiMap = ref(null);
+const aiMissing = ref(null);
 const inputEl = ref(null);
 let debounceTimer = null;
 
@@ -180,6 +189,7 @@ watch(
       aiTarget.value = '';
       aiError.value = '';
       aiMap.value = null;
+      aiMissing.value = null;
       await nextTick();
       inputEl.value?.focus();
     }
@@ -300,14 +310,25 @@ async function doAiPlan() {
   if (!aiTarget.value) return;
   aiPlanning.value = true;
   aiError.value = '';
+  aiMissing.value = null;
   try {
     const data = await api.agentPlan(aiTarget.value);
-    aiMap.value = data;
-    ui.toast(`已生成定制地图：${data.nodes.length} 个待掌握节点`, 'success');
+    if (data.missing) {
+      aiMissing.value = data; // 缺卡 → 提示是否让 AI 制作
+    } else {
+      aiMap.value = data;
+      ui.toast(`已生成定制地图：${data.nodes.length} 个待掌握节点`, 'success');
+    }
   } catch (e) {
     aiError.value = e.message;
   } finally {
     aiPlanning.value = false;
   }
+}
+
+// 制作入库成功：回到规划区，用户可再次用同一关键词规划（此时已有该节点）
+async function onCardImported() {
+  aiMissing.value = null;
+  ui.toast('新知识卡已入库；再次点「生成定制地图」即可列出该技能的学习路线', 'success');
 }
 </script>

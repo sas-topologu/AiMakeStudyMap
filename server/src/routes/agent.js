@@ -1,21 +1,63 @@
-// AI 辅助路线规划：为外部 Agent 提供知识图谱信息读取接口 + 定制个性化学习地图
-// - GET  /agent/graph  ：Agent 读取全量知识图谱（节点资料 + 前置/相关关系），
-//                        带用户 token 时每个节点标注该用户当前状态，供 Agent 排除「已点亮」。
-//                        入口在导航功能中，用户在外部的 Agent 对话里讲述要掌握的技能。
-// - POST /agent/plan   ：给定技能（节点 id 或关键词），返回「用户需要掌握」的定制地图——
-//                        目标的一切 prerequisite 前置闭包，剔除已通关/已点亮节点，
-//                        仅保留 prerequisite 关系（排除相关性不高），供渲染中心视图样式的地图。
+// AI 辅助路线规划 + 缺卡让 AI 制作：为外部 Agent 提供知识图谱读取 / 定制学习地图 /
+// 制作规范 / 制作卡提交入库接口。
+// - GET  /agent/graph  ：Agent 读取全量知识图谱（节点资料 + 前置/相关关系），带 token 标注状态。
+// - POST /agent/plan   ：给定技能，返回「需要掌握」的定制地图（prerequisite 前置闭包，剔除已点亮）。
+//                        若图谱中无对应知识卡，返回 { missing: true }，前端提示用户「是否让 AI 制作」。
+// - GET  /agent/spec   ：返回知识卡制作规范 v2.1 + 模板骨架，供用户个人 Agent「按照规范制作」。
+// - POST /agent/cards  ：接收用户个人 Agent 制作好的知识卡（JSON 数组），校验（schema+并图+悬空）后
+//                        写入 content/cards 并入库（版本号 +1），成为星图新节点。
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Router } from 'express';
-import { errors } from '../errors.js';
+import { errors, ApiError } from '../errors.js';
 import { allEdges } from '../db/contentRepo.js';
+import { DEFAULT_DB_PATH } from '../db/connection.js';
 import { authOptional, authRequired } from '../middleware/auth.js';
 import { batchEffectiveStates } from '../services/stateService.js';
+import * as repo from '../db/contentRepo.js';
+import { checkCards } from '../../../content/tools/import.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.resolve(__dirname, '../../..');
+const ASSETS_DIR = path.resolve(PROJECT_ROOT, 'content/assets');
+const CARDS_DIR = path.resolve(PROJECT_ROOT, 'content/cards');
+const STAGING_DIR = path.resolve(PROJECT_ROOT, 'content/staging');
+const SPEC_PATH = path.resolve(PROJECT_ROOT, 'docs/知识卡制作规范.md');
+const dbPath = () => process.env.STARMAP_DB || DEFAULT_DB_PATH;
 
 function nodeBasic(db) {
-  return db
-    .prepare('SELECT id, title, subject, difficulty FROM nodes ORDER BY id')
-    .all();
+  return db.prepare('SELECT id, title, subject, difficulty FROM nodes ORDER BY id').all();
 }
+
+// 模板骨架：供外部 Agent 参考字段结构（规范文档为最终依据）
+const CARD_TEMPLATE = {
+  id: 'subject.field.concept',
+  title: '概念中文标题',
+  subject: '学科（如 数学 / 物理 / 计算机 / 人工智能 / 化学 / 生物 / 地理）',
+  category: '自然科学',
+  credibility: 'verified',
+  difficulty: 2,
+  summary: '一段话摘要：这个知识解决什么问题、结论是什么。',
+  objectives: ['学完能…', '学完能…', '学完能…'],
+  sections: [
+    {
+      heading: '节标题（沿认知递进主线）',
+      tier: 'core',
+      body: '段落2~4句，公式独占一行，[[术语]] 需在 terms 定义。',
+      examples: [{ id: 'ex1', title: '例题1', problem: '…', steps: ['…', '…'], answer: '…' }],
+      pitfalls: ['常见易错点1', '常见易错点2'],
+      tools: { heading: '工具表（如积分表）', rows: ['条目1', '条目2'] },
+    },
+  ],
+  terms: { 术语: '定义', 另一个术语: '定义' },
+  relations: { prerequisites: ['已入库的前置节点 id'], related: ['已入库的相关节点 id'] },
+  questionBank: [
+    { id: 'q1', type: 'choice', stem: '…', options: ['A', 'B'], answer: 0, explanation: '…', difficulty: 1 },
+    { id: 'q2', type: 'fill', stem: '…', answer: '唯一答案', explanation: '…', difficulty: 2 },
+  ],
+  version: 1,
+};
 
 export function agentRouter({ db, secret }) {
   const router = Router();
@@ -37,13 +79,12 @@ export function agentRouter({ db, secret }) {
     });
   });
 
-  // ---- 定制学习地图（AI 生成；仅「需要掌握」且未点亮，只保留 prerequisite） ----
+  // ---- 定制学习地图（AI 生成；缺卡返回 missing 提示） ----
   router.post('/agent/plan', authRequired(secret), (req, res) => {
     const target = String(req.body?.target ?? '').trim();
     if (!target) throw errors.validation('请给出要掌握的技能（节点 id 或关键词）');
 
     const nodes = nodeBasic(db);
-    // 定位目标：精确 id 优先 → title 关键词 → summary 关键词（均取字典序最小，确定性）
     let targetId = nodes.find((n) => n.id === target)?.id;
     if (!targetId) {
       const lower = target.toLowerCase();
@@ -56,10 +97,16 @@ export function agentRouter({ db, secret }) {
         if (bySummary.length) targetId = bySummary[0].id;
       }
     }
-    if (!targetId) throw errors.notFound('未找到该技能对应的知识节点');
+    if (!targetId) {
+      // 缺卡：提示用户是否让 AI 制作
+      return res.status(200).json({
+        missing: true,
+        query: target,
+        message: `「${target}」暂未收录为知识卡。可让 AI 按规范制作，或换一个更具体的技能关键词。`,
+      });
+    }
 
-    // prerequisite 反向邻接（from 的前置是 to）：从目标 BFS 收集全部前置闭包
-    const preOf = new Map(); // from -> [to...]
+    const preOf = new Map();
     for (const e of allEdges(db)) {
       if (e.type !== 'prerequisite') continue;
       if (!preOf.has(e.from_id)) preOf.set(e.from_id, []);
@@ -77,12 +124,9 @@ export function agentRouter({ db, secret }) {
       }
     }
 
-    // 排除已通关/已点亮（已掌握），其余即「需要掌握」
     const states = batchEffectiveStates(db, req.user.id, [...closure]);
     const toLearn = [...closure].filter((id) => states[id] !== 'lit' && states[id] !== 'passed');
     const learnSet = new Set(toLearn);
-
-    // 待学节点之间仅保留 prerequisite 边（排除 related 等「相关性不高」的关系）
     const edges = allEdges(db)
       .filter((e) => e.type === 'prerequisite' && learnSet.has(e.from_id) && learnSet.has(e.to_id))
       .map((e) => ({ from: e.from_id, to: e.to_id, type: e.type }));
@@ -102,6 +146,96 @@ export function agentRouter({ db, secret }) {
       })),
       edges,
     });
+  });
+
+  // ---- 制作规范 + 模板（供外部 Agent 按规范制作） ----
+  router.get('/agent/spec', (req, res) => {
+    let spec = '';
+    try {
+      spec = fs.readFileSync(SPEC_PATH, 'utf8');
+    } catch {
+      /* 兜底 */
+    }
+    res.json({
+      version: 'v2.1',
+      spec,
+      template: CARD_TEMPLATE,
+      note: '按规范制作知识卡 JSON，完成后 POST /api/agent/cards 提交（cards 数组），校验通过即入库为星图新节点。',
+    });
+  });
+
+  // ---- 提交制作好的知识卡（校验 + 入库；仅登录用户） ----
+  router.post('/agent/cards', authRequired(secret), (req, res) => {
+    const cards = req.body?.cards;
+    if (!Array.isArray(cards) || cards.length === 0) {
+      throw errors.validation('请提供 cards 数组（至少一张制作好的知识卡）');
+    }
+
+    // 写入临时 staging 目录（每卡一文件）
+    const stamp = Date.now();
+    const inDir = path.join(STAGING_DIR, `.incoming-${stamp}`);
+    fs.mkdirSync(inDir, { recursive: true });
+    try {
+      for (const card of cards) {
+        const id = String(card?.id ?? '');
+        if (!id) throw errors.validation('卡片缺少 id');
+        fs.writeFileSync(path.join(inDir, `${id}.json`), JSON.stringify(card, null, 2));
+      }
+      // 校验：schema + 节内术语 + media 资产 + 结构（并入当前库现有节点图，避免悬空误报）
+      const withDb = typeof db?.name === 'string' ? db.name : dbPath();
+      const result = checkCards({ dir: inDir, withDb, assetsDir: ASSETS_DIR });
+      if (!result.ok) {
+        return res.status(400).json({ ok: false, errors: result.errors });
+      }
+
+      // 入库（直接在服务 db 上 upsert，增量加边，不整体替换）
+      const created = [];
+      const updated = [];
+      const edgeInsert = db.prepare(
+        'INSERT OR IGNORE INTO edges (from_id, to_id, type) VALUES (?, ?, ?)'
+      );
+      db.transaction(() => {
+        for (const card of cards) {
+          const s = repo.upsertNode(db, card);
+          if (s === 'created') created.push(card.id);
+          else if (s === 'updated') updated.push(card.id);
+          repo.replaceQuestions(db, card.id, card.questionBank);
+          for (const pre of card.relations.prerequisites) edgeInsert.run(card.id, pre, 'prerequisite');
+          const relSeen = new Set();
+          for (const rel of card.relations.related ?? []) {
+            const [a, b] = [card.id, rel].sort();
+            const key = `${a}|${b}`;
+            if (relSeen.has(key)) continue;
+            relSeen.add(key);
+            edgeInsert.run(a, b, 'related');
+          }
+        }
+        if (created.length || updated.length) {
+          const newVersion = repo.bumpContentVersion(db);
+          const summary = `新增 ${created.length} / 更新 ${updated.length} / 删除 0`;
+          const parts = [];
+          if (created.length) parts.push(`新增：${created.join('、')}`);
+          if (updated.length) parts.push(`更新：${updated.join('、')}`);
+          db.prepare(
+            'INSERT INTO changelogs (version, summary, detail, created_at) VALUES (?, ?, ?, ?)'
+          ).run(newVersion, summary, parts.join('\n'), new Date().toISOString());
+        }
+      })();
+
+      // 持久化内容源：移入 content/cards/
+      for (const card of cards) {
+        fs.copyFileSync(
+          path.join(inDir, `${card.id}.json`),
+          path.join(CARDS_DIR, `${card.id}.json`)
+        );
+      }
+      res.json({ ok: true, created, updated, newContentVersion: repo.getContentVersion(db) });
+    } catch (e) {
+      if (e instanceof ApiError) throw e;
+      throw errors.validation(e.message || '卡片处理失败');
+    } finally {
+      fs.rmSync(inDir, { recursive: true, force: true });
+    }
   });
 
   return router;

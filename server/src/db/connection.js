@@ -7,7 +7,7 @@ import { runMigrations } from './migrate.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // 默认库文件：server/data/starmap.db，可用环境变量 STARMAP_DB 覆盖
-const DEFAULT_DB_PATH = path.resolve(__dirname, '../../data/starmap.db');
+export const DEFAULT_DB_PATH = path.resolve(__dirname, '../../data/starmap.db');
 
 // 打开数据库：自动建目录、开启 WAL 与外键、按序应用迁移
 export function openDatabase(dbPath = process.env.STARMAP_DB || DEFAULT_DB_PATH) {
