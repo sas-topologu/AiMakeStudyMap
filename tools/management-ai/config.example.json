@@ -1,0 +1,10 @@
+{
+  "baseUrl": "http://localhost:3000",
+  "username": "你的管理员账号",
+  "password": "你的密码",
+  "model": "qwen2.5",
+  "api": "http://localhost:11434/v1/chat/completions",
+  "key": "",
+  "intervalMs": 5000,
+  "maxRounds": 0
+}

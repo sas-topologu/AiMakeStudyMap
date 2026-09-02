@@ -1,30 +1,24 @@
 // AI 辅助路线规划 + 缺卡让 AI 制作：为外部 Agent 提供知识图谱读取 / 定制学习地图 /
-// 制作规范 / 制作卡提交入库接口。
+// 制作规范 / 知识卡投稿接口。
 // - GET  /agent/graph  ：Agent 读取全量知识图谱（节点资料 + 前置/相关关系），带 token 标注状态。
 // - POST /agent/plan   ：给定技能，返回「需要掌握」的定制地图（prerequisite 前置闭包，剔除已点亮）。
-//                        若图谱中无对应知识卡，返回 { missing: true }，前端提示用户「是否让 AI 制作」。
+//                        若图谱中无对应知识卡，返回 { missing: true }，提示用户「是否让 AI 制作」。
+// - POST /agent/course ：给定技能，返回按学习顺序的课程大纲（基础→目标，含每步状态）——定制课程用。
 // - GET  /agent/spec   ：返回知识卡制作规范 v2.1 + 模板骨架，供用户个人 Agent「按照规范制作」。
-// - POST /agent/cards  ：接收用户个人 Agent 制作好的知识卡（JSON 数组），校验（schema+并图+悬空）后
-//                        写入 content/cards 并入库（版本号 +1），成为星图新节点。
+// - POST /agent/cards  ：投稿知识卡（校验 → 存待审 → 建 card_review 任务），由管理 AI 一审后入库。
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Router } from 'express';
-import { errors, ApiError } from '../errors.js';
+import { errors } from '../errors.js';
 import { allEdges } from '../db/contentRepo.js';
-import { DEFAULT_DB_PATH } from '../db/connection.js';
 import { authOptional, authRequired } from '../middleware/auth.js';
 import { batchEffectiveStates } from '../services/stateService.js';
-import * as repo from '../db/contentRepo.js';
-import { checkCards } from '../../../content/tools/import.js';
+import { validateCards, createSubmission } from '../services/cardIngest.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '../../..');
-const ASSETS_DIR = path.resolve(PROJECT_ROOT, 'content/assets');
-const CARDS_DIR = path.resolve(PROJECT_ROOT, 'content/cards');
-const STAGING_DIR = path.resolve(PROJECT_ROOT, 'content/staging');
 const SPEC_PATH = path.resolve(PROJECT_ROOT, 'docs/知识卡制作规范.md');
-const dbPath = () => process.env.STARMAP_DB || DEFAULT_DB_PATH;
 
 function nodeBasic(db) {
   return db.prepare('SELECT id, title, subject, difficulty FROM nodes ORDER BY id').all();
@@ -267,78 +261,29 @@ export function agentRouter({ db, secret }) {
     });
   });
 
-  // ---- 提交制作好的知识卡（校验 + 入库；仅登录用户） ----
+  // ---- 投稿知识卡（校验 → 存待审 → 建 card_review 任务；仅登录用户） ----
+  // 方案乙 + 服务端管理 AI：投稿不直接入库，先由「管理 Agent 桥」审核（回写 approve 才入库）。
   router.post('/agent/cards', authRequired(secret), (req, res) => {
     const cards = req.body?.cards;
     if (!Array.isArray(cards) || cards.length === 0) {
       throw errors.validation('请提供 cards 数组（至少一张制作好的知识卡）');
     }
-
-    // 写入临时 staging 目录（每卡一文件）
-    const stamp = Date.now();
-    const inDir = path.join(STAGING_DIR, `.incoming-${stamp}`);
-    fs.mkdirSync(inDir, { recursive: true });
-    try {
-      for (const card of cards) {
-        const id = String(card?.id ?? '');
-        if (!id) throw errors.validation('卡片缺少 id');
-        fs.writeFileSync(path.join(inDir, `${id}.json`), JSON.stringify(card, null, 2));
-      }
-      // 校验：schema + 节内术语 + media 资产 + 结构（并入当前库现有节点图，避免悬空误报）
-      const withDb = typeof db?.name === 'string' ? db.name : dbPath();
-      const result = checkCards({ dir: inDir, withDb, assetsDir: ASSETS_DIR });
-      if (!result.ok) {
-        return res.status(400).json({ ok: false, errors: result.errors });
-      }
-
-      // 入库（直接在服务 db 上 upsert，增量加边，不整体替换）
-      const created = [];
-      const updated = [];
-      const edgeInsert = db.prepare(
-        'INSERT OR IGNORE INTO edges (from_id, to_id, type) VALUES (?, ?, ?)'
-      );
-      db.transaction(() => {
-        for (const card of cards) {
-          const s = repo.upsertNode(db, card);
-          if (s === 'created') created.push(card.id);
-          else if (s === 'updated') updated.push(card.id);
-          repo.replaceQuestions(db, card.id, card.questionBank);
-          for (const pre of card.relations.prerequisites) edgeInsert.run(card.id, pre, 'prerequisite');
-          const relSeen = new Set();
-          for (const rel of card.relations.related ?? []) {
-            const [a, b] = [card.id, rel].sort();
-            const key = `${a}|${b}`;
-            if (relSeen.has(key)) continue;
-            relSeen.add(key);
-            edgeInsert.run(a, b, 'related');
-          }
-        }
-        if (created.length || updated.length) {
-          const newVersion = repo.bumpContentVersion(db);
-          const summary = `新增 ${created.length} / 更新 ${updated.length} / 删除 0`;
-          const parts = [];
-          if (created.length) parts.push(`新增：${created.join('、')}`);
-          if (updated.length) parts.push(`更新：${updated.join('、')}`);
-          db.prepare(
-            'INSERT INTO changelogs (version, summary, detail, created_at) VALUES (?, ?, ?, ?)'
-          ).run(newVersion, summary, parts.join('\n'), new Date().toISOString());
-        }
-      })();
-
-      // 持久化内容源：移入 content/cards/
-      for (const card of cards) {
-        fs.copyFileSync(
-          path.join(inDir, `${card.id}.json`),
-          path.join(CARDS_DIR, `${card.id}.json`)
-        );
-      }
-      res.json({ ok: true, created, updated, newContentVersion: repo.getContentVersion(db) });
-    } catch (e) {
-      if (e instanceof ApiError) throw e;
-      throw errors.validation(e.message || '卡片处理失败');
-    } finally {
-      fs.rmSync(inDir, { recursive: true, force: true });
+    for (const card of cards) {
+      if (!card?.id) throw errors.validation('卡片缺少 id');
     }
+    // 校验：schema + 节内术语 + media 资产 + 结构（并入当前库现有节点图，避免悬空误报）
+    const check = validateCards(db, cards);
+    if (!check.ok) {
+      return res.status(400).json({ ok: false, errors: check.errors });
+    }
+    const { submissionId, taskId } = createSubmission(db, req.user.id, cards);
+    res.status(201).json({
+      ok: true,
+      submissionId,
+      taskId,
+      status: 'pending',
+      message: '已提交审核，将由管理 AI 一审；通过后自动入库为星图新节点。',
+    });
   });
 
   return router;

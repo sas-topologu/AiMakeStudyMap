@@ -186,6 +186,40 @@ const migrations = [
       );
     `,
   },
+  {
+    version: 5,
+    name: '005_ai_tasks',
+    // AI 任务桥：服务端管理 Agent（外部执行者）通过任务队列接入。
+    // ai_tasks：任务（类型/状态/结论/模型指纹）；card_submissions：待审投稿卡（未过审不入主库）。
+    // 管理与普通执行者由凭证角色区分，见 routes/aiTasks.js。
+    sql: `
+      CREATE TABLE ai_tasks (
+        id          TEXT PRIMARY KEY,
+        type        TEXT NOT NULL CHECK (type IN ('card_review', 'correction_review', 'report_review', 'legal_action')),
+        role        TEXT NOT NULL DEFAULT 'operator' CHECK (role IN ('operator', 'member')),
+        status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'done', 'failed')),
+        subject_id  TEXT,
+        verdict     TEXT,
+        result_json TEXT,
+        model       TEXT,
+        created_at  TEXT NOT NULL,
+        done_at     TEXT
+      );
+      CREATE INDEX idx_ai_tasks_status ON ai_tasks (role, status);
+
+      CREATE TABLE card_submissions (
+        id          TEXT PRIMARY KEY,
+        node_id     TEXT NOT NULL,
+        user_id     INTEGER NOT NULL,
+        card_json   TEXT NOT NULL,
+        status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+        reason      TEXT,
+        created_at  TEXT NOT NULL,
+        reviewed_at TEXT
+      );
+      CREATE INDEX idx_card_submissions_status ON card_submissions (status);
+    `,
+  },
 ];
 
 export function runMigrations(db) {

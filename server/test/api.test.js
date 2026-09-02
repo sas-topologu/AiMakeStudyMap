@@ -507,38 +507,67 @@ describe('API 集成', () => {
     expect(missing.body.missing).toBe(true);
   });
 
-  it('AI 制作卡提交：合法卡入库 / 重复导入幂等 / 非法卡报错', async () => {
-    const token = await registerUser('agent3');
+  it('AI 投稿：先待审不进主库，管理桥回写 approve 才入库；reject 打回', async () => {
+    const token = await registerUser('agent3'); // 第一个注册 → 管理员
     const mk = (id, pre) => makeCard(id, { prerequisites: pre ? [pre] : [], difficulty: 3 });
 
-    // 前置引用库中已有节点 t.a
+    // 投稿：返回 pending + 任务
     const created = await agent
       .post('/api/agent/cards')
       .set(auth(token))
       .send({ cards: [mk('x.new', 't.a')] });
-    expect(created.status).toBe(200);
-    expect(created.body.created).toEqual(['x.new']);
-    // 新节点已入库（graph/all 可见）
-    const all = await agent.get('/api/graph/all');
-    expect(all.body.nodes.some((n) => n.id === 'x.new')).toBe(true);
-    // 重复导入（同 id 新卡）→ 更新而非新增（幂等）
-    const redo = await agent
-      .post('/api/agent/cards')
+    expect(created.status).toBe(201);
+    expect(created.body.status).toBe('pending');
+    expect(created.body.taskId).toBeTruthy();
+    // 未过审 → 不进入主库
+    const before = await agent.get('/api/graph/all');
+    expect(before.body.nodes.some((n) => n.id === 'x.new')).toBe(false);
+    // 非管理员拉不到管理任务
+    const member = await registerUser('agent3b');
+    const forbidden = await agent.get('/api/ai-tasks').set(auth(member));
+    expect(forbidden.status).toBe(403);
+    // 管理员拉任务 → 含 card_review；读任务可见投稿卡
+    const tasks = await agent.get('/api/ai-tasks').set(auth(token));
+    expect(tasks.body.tasks).toHaveLength(1);
+    expect(tasks.body.tasks[0].type).toBe('card_review');
+    const detail = await agent.get(`/api/ai-tasks/${tasks.body.tasks[0].id}`).set(auth(token));
+    expect(detail.body.card).toHaveProperty('id', 'x.new');
+    // 回写 approve → 入库
+    const done = await agent
+      .post(`/api/ai-tasks/${tasks.body.tasks[0].id}/result`)
       .set(auth(token))
-      .send({ cards: [{ ...mk('x.new', 't.a'), version: 2 }] });
-    expect(redo.status).toBe(200);
-    expect(redo.body.updated).toContain('x.new');
-    // 非法卡（悬空前置引用不存在节点）→ 校验错误
-    const bad = await agent
-      .post('/api/agent/cards')
+      .send({ verdict: 'approve', model: 'test-ai' });
+    expect(done.status).toBe(200);
+    expect(done.body.status).toBe('approved');
+    expect(done.body.created).toContain('x.new');
+    const after = await agent.get('/api/graph/all');
+    expect(after.body.nodes.some((n) => n.id === 'x.new')).toBe(true);
+    // 已处理任务再回写 → 404
+    const again = await agent
+      .post(`/api/ai-tasks/${tasks.body.tasks[0].id}/result`)
       .set(auth(token))
-      .send({ cards: [mk('x.bad', 'not.exist')] });
-    expect(bad.status).toBe(400);
-    expect(bad.body.ok).toBe(false);
-    expect(Array.isArray(bad.body.errors)).toBe(true);
-
-    // 清理持久化到内容目录的测试卡（避免污染真实卡库）
+      .send({ verdict: 'approve' });
+    expect(again.status).toBe(404);
+    // 清理持久化到内容目录的测试卡
     const persisted = path.join(ROOT, 'content/cards/x.new.json');
     if (fs.existsSync(persisted)) fs.rmSync(persisted);
+  });
+
+  it('AI 投稿：reject 打回且不入库', async () => {
+    const token = await registerUser('agent5');
+    const mk = (id, pre) => makeCard(id, { prerequisites: pre ? [pre] : [], difficulty: 3 });
+    const created = await agent
+      .post('/api/agent/cards')
+      .set(auth(token))
+      .send({ cards: [mk('x.rej', 't.a')] });
+    expect(created.body.status).toBe('pending');
+    const tasks = await agent.get('/api/ai-tasks').set(auth(token));
+    const done = await agent
+      .post(`/api/ai-tasks/${tasks.body.tasks[0].id}/result`)
+      .set(auth(token))
+      .send({ verdict: 'reject', reason: '推演主线不足', model: 'test-ai' });
+    expect(done.body.status).toBe('rejected');
+    const after = await agent.get('/api/graph/all');
+    expect(after.body.nodes.some((n) => n.id === 'x.rej')).toBe(false);
   });
 });

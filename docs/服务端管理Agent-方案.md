@@ -53,12 +53,13 @@
 - 管理 Agent 检查对象时，按需经授权只读接口拉取**该对象**内容，不扫描全量。
 - 法定邮件由管理 Agent 收信处理，平台只记录"动作+时间+执行者"，不存原信。
 
-## 六、待实现清单（按此顺序）
+## 六、实现状态（已落地第一、二、三步）
 
-1. **任务桥基础设施**：任务表（类型/状态/发起人/结论/重试）、`GET /api/ai-tasks`、`POST /api/ai-tasks/:id/result`、运营者/普通执行者两级 token 鉴权、运营者凭证生成。
-2. **管理 Agent 桥程序**：`tools/management-ai/` 独立 node 小程序 + `config.example.json` + 启动脚本；长轮询、按类型分发、Ollama/OpenAI 客户端、回写。
-3. **接入审核状态机**：投稿入口 → `card_review` 任务 → 管理桥回写 → 公示/入库/打回（含功能冻结）。
-4. **其余任务类型**：勘误、举报、法定邮件动作。
+1. ✅ **任务桥基础设施**：`server/src/services/cardIngest.js`（校验/入库/投稿中心化）、`server/src/routes/aiTasks.js`（`GET /api/ai-tasks`、`GET /api/ai-tasks/:id` 读卡、`POST /api/ai-tasks/:id/result` 回写、管理员权限判定、`ai_tasks`/`card_submissions` 表）。
+2. ✅ **管理 Agent 桥程序**：`tools/management-ai/`（`config.example.json` + `index.mjs`，配置即跑：登录→轮询→LLM 评分→回写）。
+3. ✅ **接入审核状态机**：`POST /api/agent/cards` 现为**投稿**（校验→存待审→建 `card_review` 任务→返回 pending），**未过审不进主库**；管理桥回写 `approve` 才入库（版本号+1），`reject` 打回并留原因。
+4. ⏳ **其余任务类型**（勘误/举报/法定邮件动作）：任务表与回写框架已就绪，接入具体业务入口待后续。
 
-> 说明：本文件为**设计**。任务①（本地端 agent 接入）已落地（`/agent/course` 接口 + 《agent-接入指南》）。
-> 任务②按此方案实施时，从"任务桥"起逐步补齐。
+> 运行管理桥：`cp tools/management-ai/config.example.json tools/management-ai/config.json`（填模型/账号）→ `npm run management-ai`。
+> 说明：本文件为**设计**，当前已覆盖大部分落地；任务①（本地端 agent 接入）也已落地（`/agent/course` + 《agent-接入指南》）。
+

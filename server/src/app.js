@@ -21,6 +21,7 @@ import { assetsRouter } from './routes/assets.js';
 import { shareRouter } from './routes/share.js';
 import { profileRouter } from './routes/profile.js';
 import { agentRouter } from './routes/agent.js';
+import { aiTasksRouter } from './routes/aiTasks.js';
 import { promotePioneers } from './services/pioneerService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -92,6 +93,7 @@ export function createApp(
   app.use('/api', shareRouter(ctx));
   app.use('/api', profileRouter(ctx));
   app.use('/api', agentRouter(ctx));
+  app.use('/api', aiTasksRouter(ctx));
 
   // 静态托管（在 API 路由之后、错误处理之前挂载）
   if (staticDir && fs.existsSync(staticDir)) {

@@ -16,6 +16,7 @@
     "import": "node content/tools/import.js",
     "scan": "node content/tools/scan.js",
     "audit": "node content/tools/audit.js",
+    "management-ai": "node tools/management-ai/index.mjs",
     "test": "npm test -w server",
     "deploy": "npm run build && npm run import && npm start"
   }
