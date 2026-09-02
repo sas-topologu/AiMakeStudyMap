@@ -97,3 +97,77 @@ export function createSubmission(db, userId, cards) {
 }
 
 export { CARDS_DIR, nowIso };
+
+// ---- 审核状态机辅助 ----
+const REVIEW_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 公示窗口 7 天
+export const REVIEW_WINDOW = REVIEW_WINDOW_MS;
+
+// 一审通过 → 进入公示（ai_reviewed），设置到期时间；不立即入库
+export function markAiReviewed(db, submissionId, reason = '') {
+  const due = new Date(Date.now() + REVIEW_WINDOW_MS).toISOString();
+  db.prepare(
+    "UPDATE card_submissions SET status='ai_reviewed', reason=?, review_due_at=?, reviewed_at=? WHERE id=?"
+  ).run(reason, due, nowIso(), submissionId);
+  return due;
+}
+
+// 终审通过：入库（复用 insertCards），投稿标记 approved
+export function finalize(db, submissionId, cards) {
+  const r = insertCards(db, cards);
+  db.prepare("UPDATE card_submissions SET status='approved', reviewed_at=? WHERE id=?").run(nowIso(), submissionId);
+  return r;
+}
+
+// 打回 / 社区异议 → reopened（回到待重审标记）
+export function markReopened(db, submissionId, reason) {
+  db.prepare("UPDATE card_submissions SET status='reopened', reason=?, reviewed_at=? WHERE id=?").run(reason ?? '', nowIso(), submissionId);
+}
+
+// 公示到期自动通过：把 review_due_at 已过且 status=ai_reviewed 的投稿入库
+export function settleExpired(db) {
+  const expired = db
+    .prepare("SELECT * FROM card_submissions WHERE status='ai_reviewed' AND review_due_at IS NOT NULL AND review_due_at <= ? ORDER BY review_due_at")
+    .all(nowIso());
+  const settled = [];
+  for (const sub of expired) {
+    try {
+      finalize(db, sub.id, JSON.parse(sub.card_json));
+      settled.push(sub.id);
+    } catch (e) {
+      // 入库失败（如悬空）→ 打回
+      db.prepare("UPDATE card_submissions SET status='rejected', reason=?, reviewed_at=? WHERE id=?").run('公示期满入库失败：' + e.message, nowIso(), sub.id);
+    }
+  }
+  return settled;
+}
+
+// 功能冻结：查本周拒次 → 达阈值冻结。返回 { frozen, remaining, waitMinutes }
+// freezeBase 冻结时长（分钟），随当周拒绝次数递增（最低 2 小时），每周一清零。
+export function checkFreeze(db, userId) {
+  const weekStart = weeklyStart();
+  const rejectedCount = db
+    .prepare(
+      "SELECT COUNT(*) c FROM card_submissions WHERE user_id=? AND status='rejected' AND created_at >= ?"
+    )
+    .get(userId, weekStart).c;
+  if (rejectedCount < 3) return { frozen: false, rejectedCount };
+  const k = rejectedCount - 2; // 第 3 次起触发
+  const waitMinutes = 120 * 2 ** (k - 1); // 最低 2 小时，随次数翻倍
+  // 找本期最近一次拒绝时刻，计算冻结剩余
+  const last = db
+    .prepare("SELECT created_at, reviewed_at FROM card_submissions WHERE user_id=? AND status='rejected' ORDER BY created_at DESC LIMIT 1")
+    .get(userId);
+  const ref = last?.reviewed_at ?? last?.created_at ?? nowIso();
+  const freezeUntil = new Date(new Date(ref).getTime() + waitMinutes * 60 * 1000).getTime();
+  const remainMin = Math.max(0, Math.ceil((freezeUntil - Date.now()) / 60000));
+  return { frozen: remainMin > 0, rejectedCount, waitMinutes, remainMinutes: remainMin, freezeWait: `上限 ${Math.ceil(waitMinutes / 60)} 小时（拒${rejectedCount}次，每周重置）` };
+}
+
+// 自然周起点（周一 00:00 本地）
+function weeklyStart() {
+  const d = new Date();
+  const day = (d.getDay() + 6) % 7; // 周一=0
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - day);
+  return d.toISOString();
+}

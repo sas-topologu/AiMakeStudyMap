@@ -92,6 +92,11 @@ async function handle(task) {
 
 async function loop() {
   try {
+    // 先推进「公示到期」的投稿自动通过（一审 approve 后卡进公示，期满无异议入库）
+    try {
+      const s = await req('POST', '/api/ai-tasks/settle-expired', {});
+      if (s?.settled?.length) console.log(`[bridge] 公示到期自动通过 ${s.settled.length} 张`);
+    } catch { /* 无需处理 */ }
     const { tasks } = await req('GET', '/api/ai-tasks?role=operator');
     if (tasks.length) {
       console.log(`[bridge] 领取 ${tasks.length} 个任务`);

@@ -80,6 +80,13 @@ describe('API 集成', () => {
   afterEach(() => {
     db.close();
     fs.rmSync(tmp, { recursive: true, force: true });
+    // 清理测试投稿持久化到真实内容目录的卡（insertCards 会写 content/cards）
+    const cardsDir = path.join(ROOT, 'content/cards');
+    for (const f of fs.readdirSync(cardsDir)) {
+      if (f.startsWith('x.')) {
+        try { fs.rmSync(path.join(cardsDir, f), { force: true }); } catch { /* ignore */ }
+      }
+    }
   });
 
   it('注册 / 登录 / JWT 鉴权', async () => {
@@ -507,67 +514,80 @@ describe('API 集成', () => {
     expect(missing.body.missing).toBe(true);
   });
 
-  it('AI 投稿：先待审不进主库，管理桥回写 approve 才入库；reject 打回', async () => {
+  it('AI 投稿：一审通过进公示窗口，第三方终审 approve 才入库；拒绝打回', async () => {
     const token = await registerUser('agent3'); // 第一个注册 → 管理员
     const mk = (id, pre) => makeCard(id, { prerequisites: pre ? [pre] : [], difficulty: 3 });
 
-    // 投稿：返回 pending + 任务
     const created = await agent
       .post('/api/agent/cards')
       .set(auth(token))
       .send({ cards: [mk('x.new', 't.a')] });
     expect(created.status).toBe(201);
     expect(created.body.status).toBe('pending');
-    expect(created.body.taskId).toBeTruthy();
-    // 未过审 → 不进入主库
-    const before = await agent.get('/api/graph/all');
-    expect(before.body.nodes.some((n) => n.id === 'x.new')).toBe(false);
-    // 非管理员拉不到管理任务
-    const member = await registerUser('agent3b');
-    const forbidden = await agent.get('/api/ai-tasks').set(auth(member));
-    expect(forbidden.status).toBe(403);
-    // 管理员拉任务 → 含 card_review；读任务可见投稿卡
+    // 未过审 → 不进主库
+    let all = await agent.get('/api/graph/all');
+    expect(all.body.nodes.some((n) => n.id === 'x.new')).toBe(false);
+    // 管理桥拉任务 + 一审
     const tasks = await agent.get('/api/ai-tasks').set(auth(token));
-    expect(tasks.body.tasks).toHaveLength(1);
     expect(tasks.body.tasks[0].type).toBe('card_review');
-    const detail = await agent.get(`/api/ai-tasks/${tasks.body.tasks[0].id}`).set(auth(token));
-    expect(detail.body.card).toHaveProperty('id', 'x.new');
-    // 回写 approve → 入库
-    const done = await agent
+    const one = await agent
       .post(`/api/ai-tasks/${tasks.body.tasks[0].id}/result`)
       .set(auth(token))
       .send({ verdict: 'approve', model: 'test-ai' });
-    expect(done.status).toBe(200);
-    expect(done.body.status).toBe('approved');
-    expect(done.body.created).toContain('x.new');
-    const after = await agent.get('/api/graph/all');
-    expect(after.body.nodes.some((n) => n.id === 'x.new')).toBe(true);
-    // 已处理任务再回写 → 404
-    const again = await agent
-      .post(`/api/ai-tasks/${tasks.body.tasks[0].id}/result`)
+    expect(one.body.status).toBe('ai_reviewed'); // 进入公示，而非直接入库
+    expect(one.body.reviewExpireAt).toBeTruthy();
+    all = await agent.get('/api/graph/all');
+    expect(all.body.nodes.some((n) => n.id === 'x.new')).toBe(false); // 公示期仍未入库
+    // 第三方/社区终审 approve → 入库
+    const fin = await agent
+      .post('/api/ai-tasks/finalize')
       .set(auth(token))
-      .send({ verdict: 'approve' });
-    expect(again.status).toBe(404);
+      .send({ submissionId: created.body.submissionId, verdict: 'approve', actor: 'community' });
+    expect(fin.status).toBe(200);
+    expect(fin.body.status).toBe('approved');
+    all = await agent.get('/api/graph/all');
+    expect(all.body.nodes.some((n) => n.id === 'x.new')).toBe(true);
     // 清理持久化到内容目录的测试卡
     const persisted = path.join(ROOT, 'content/cards/x.new.json');
     if (fs.existsSync(persisted)) fs.rmSync(persisted);
   });
 
-  it('AI 投稿：reject 打回且不入库', async () => {
-    const token = await registerUser('agent5');
+  it('AI 投稿：公示到期自动通过（settle-expired）；reject 打回且不入库', async () => {
+    const token = await registerUser('agent5'); // 第二个测试库首个用户 → 管理员
     const mk = (id, pre) => makeCard(id, { prerequisites: pre ? [pre] : [], difficulty: 3 });
-    const created = await agent
-      .post('/api/agent/cards')
-      .set(auth(token))
-      .send({ cards: [mk('x.rej', 't.a')] });
-    expect(created.body.status).toBe('pending');
-    const tasks = await agent.get('/api/ai-tasks').set(auth(token));
+    // 投稿并一审通过 → 进公示；倒拨 review_due_at 模拟到期
+    const c1 = await agent.post('/api/agent/cards').set(auth(token)).send({ cards: [mk('x.exp', 't.a')] });
+    const t1 = await agent.get('/api/ai-tasks').set(auth(token));
+    await agent.post(`/api/ai-tasks/${t1.body.tasks[0].id}/result`).set(auth(token)).send({ verdict: 'approve' });
+    const uid = (await agent.get('/api/auth/me').set(auth(token))).body.user.id;
+    db.prepare("UPDATE card_submissions SET review_due_at = datetime('now','-1 day') WHERE id = ?").run(c1.body.submissionId);
+    const settled = await agent.post('/api/ai-tasks/settle-expired').set(auth(token));
+    expect(settled.body.settled).toContain(c1.body.submissionId);
+    const all = await agent.get('/api/graph/all');
+    expect(all.body.nodes.some((n) => n.id === 'x.exp')).toBe(true);
+    // reject 打回且不入库
+    const c2 = await agent.post('/api/agent/cards').set(auth(token)).send({ cards: [mk('x.rej', 't.a')] });
+    const t2 = await agent.get('/api/ai-tasks').set(auth(token));
     const done = await agent
-      .post(`/api/ai-tasks/${tasks.body.tasks[0].id}/result`)
+      .post(`/api/ai-tasks/${t2.body.tasks[0].id}/result`)
       .set(auth(token))
       .send({ verdict: 'reject', reason: '推演主线不足', model: 'test-ai' });
     expect(done.body.status).toBe('rejected');
     const after = await agent.get('/api/graph/all');
     expect(after.body.nodes.some((n) => n.id === 'x.rej')).toBe(false);
+  });
+
+  it('投稿功能冻结：本周拒次达阈值后投稿被限（每周重置）', async () => {
+    const token = await registerUser('agent6'); // 管理员
+    const mk = (id, pre) => makeCard(id, { prerequisites: pre ? [pre] : [], difficulty: 3 });
+    // 三次投稿均被拒
+    for (let i = 0; i < 3; i += 1) {
+      const c = await agent.post('/api/agent/cards').set(auth(token)).send({ cards: [mk(`x.fr${i}`, 't.a')] });
+      const t = await agent.get('/api/ai-tasks').set(auth(token));
+      await agent.post(`/api/ai-tasks/${t.body.tasks[0].id}/result`).set(auth(token)).send({ verdict: 'reject', reason: '不达标' });
+    }
+    // 第四次投稿应被冻结（429）
+    const frozen = await agent.post('/api/agent/cards').set(auth(token)).send({ cards: [mk('x.fr3', 't.a')] });
+    expect(frozen.status).toBe(429);
   });
 });

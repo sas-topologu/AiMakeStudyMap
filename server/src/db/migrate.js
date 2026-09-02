@@ -220,6 +220,29 @@ const migrations = [
       CREATE INDEX idx_card_submissions_status ON card_submissions (status);
     `,
   },
+  {
+    version: 6,
+    name: '006_submission_review',
+    // 投稿审核状态机扩展：一审通过 → ai_reviewed（公示窗口，review_due_at 到期自动通过 / 第三方终审提前通过），
+    // 社区有效勘误 → reopened；功能冻结依据 card_submissions 拒次计数。
+    sql: `
+      DROP TABLE IF EXISTS card_submissions;
+      CREATE TABLE card_submissions (
+        id            TEXT PRIMARY KEY,
+        node_id       TEXT NOT NULL,
+        user_id       INTEGER NOT NULL,
+        card_json     TEXT NOT NULL,
+        status        TEXT NOT NULL DEFAULT 'pending'
+                      CHECK (status IN ('pending', 'ai_reviewed', 'approved', 'rejected', 'reopened')),
+        reason        TEXT,
+        review_due_at TEXT,
+        created_at    TEXT NOT NULL,
+        reviewed_at   TEXT
+      );
+      CREATE INDEX idx_card_submissions_status ON card_submissions (status);
+      CREATE INDEX idx_card_submissions_user ON card_submissions (user_id, created_at);
+    `,
+  },
 ];
 
 export function runMigrations(db) {

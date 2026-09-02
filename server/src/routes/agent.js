@@ -14,7 +14,7 @@ import { errors } from '../errors.js';
 import { allEdges } from '../db/contentRepo.js';
 import { authOptional, authRequired } from '../middleware/auth.js';
 import { batchEffectiveStates } from '../services/stateService.js';
-import { validateCards, createSubmission } from '../services/cardIngest.js';
+import { validateCards, createSubmission, checkFreeze } from '../services/cardIngest.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '../../..');
@@ -262,8 +262,13 @@ export function agentRouter({ db, secret }) {
   });
 
   // ---- 投稿知识卡（校验 → 存待审 → 建 card_review 任务；仅登录用户） ----
-  // 方案乙 + 服务端管理 AI：投稿不直接入库，先由「管理 Agent 桥」审核（回写 approve 才入库）。
+  // 方案乙 + 服务端管理 AI：投稿不直接入库，一审通过后进公示窗口，公示期无异议/第三方终审通过才入库。
+  // 投稿被拒达到本周阈值即功能冻结（冻结投稿功能，时长随次数递增，每周重置）。
   router.post('/agent/cards', authRequired(secret), (req, res) => {
+    const freeze = checkFreeze(db, req.user.id);
+    if (freeze.frozen) {
+      throw errors.rateLimited(`投稿功能已冻结（${freeze.freezeWait}）。请稍后再试。`);
+    }
     const cards = req.body?.cards;
     if (!Array.isArray(cards) || cards.length === 0) {
       throw errors.validation('请提供 cards 数组（至少一张制作好的知识卡）');
@@ -282,8 +287,19 @@ export function agentRouter({ db, secret }) {
       submissionId,
       taskId,
       status: 'pending',
-      message: '已提交审核，将由管理 AI 一审；通过后自动入库为星图新节点。',
+      message: '已提交审核；一审通过后进入公示窗口，无异议即入库为星图新节点。',
     });
+  });
+
+  // ---- 我的投稿状态（投稿者查看审核进度） ----
+  router.get('/agent/submissions/mine', authRequired(secret), (req, res) => {
+    const list = db
+      .prepare(
+        `SELECT id, node_id, status, reason, review_due_at, created_at, reviewed_at
+         FROM card_submissions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50`
+      )
+      .all(req.user.id);
+    res.json({ submissions: list });
   });
 
   return router;
