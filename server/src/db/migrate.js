@@ -243,6 +243,27 @@ const migrations = [
       CREATE INDEX idx_card_submissions_user ON card_submissions (user_id, created_at);
     `,
   },
+  {
+    version: 7,
+    name: '007_account_email',
+    // 账号标准模板：注册绑定邮箱（唯一，用于找回密码/通知）+ 邮箱验证码表。
+    // email 允许为空（不强制邮箱注册）；提供找回密码与改密，密码规则提升到 8 位含字母数字。
+    sql: `
+      ALTER TABLE users ADD COLUMN email TEXT;
+      CREATE UNIQUE INDEX idx_users_email ON users (email) WHERE email IS NOT NULL AND email != '';
+
+      CREATE TABLE email_codes (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        email      TEXT NOT NULL,
+        code       TEXT NOT NULL,
+        purpose    TEXT NOT NULL CHECK (purpose IN ('reset')),
+        expires_at TEXT NOT NULL,
+        used       INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX idx_email_codes_email ON email_codes (email, purpose);
+    `,
+  },
 ];
 
 export function runMigrations(db) {

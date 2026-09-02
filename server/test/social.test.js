@@ -52,7 +52,7 @@ describe('社交系统 API', () => {
   const auth = (t) => ({ Authorization: `Bearer ${t}` });
 
   async function registerUser(username) {
-    const res = await agent.post('/api/auth/register').send({ username, password: 'secret1' });
+    const res = await agent.post('/api/auth/register').send({ username, password: 'Secret12' });
     expect(res.status).toBe(201);
     return res.body.token;
   }

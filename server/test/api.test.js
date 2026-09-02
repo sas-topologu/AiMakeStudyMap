@@ -57,7 +57,7 @@ describe('API 集成', () => {
   const auth = (t) => ({ Authorization: `Bearer ${t}` });
 
   async function registerUser(username) {
-    const res = await agent.post('/api/auth/register').send({ username, password: 'secret1' });
+    const res = await agent.post('/api/auth/register').send({ username, password: 'Secret12' });
     expect(res.status).toBe(201);
     return res.body.token;
   }
@@ -91,23 +91,56 @@ describe('API 集成', () => {
 
   it('注册 / 登录 / JWT 鉴权', async () => {
     const token = await registerUser('用户甲');
-    const login = await agent.post('/api/auth/login').send({ username: '用户甲', password: 'secret1' });
+    const login = await agent.post('/api/auth/login').send({ username: '用户甲', password: 'Secret12' });
     expect(login.status).toBe(200);
     expect(login.body.token).toBeTruthy();
     expect(login.body.user.username).toBe('用户甲');
 
-    const wrong = await agent.post('/api/auth/login').send({ username: '用户甲', password: 'bad-password' });
+    const wrong = await agent.post('/api/auth/login').send({ username: '用户甲', password: 'WrongPass1' });
     expect(wrong.status).toBe(401);
     expect(wrong.body.error.code).toBe('UNAUTHORIZED');
 
     const noToken = await agent.post('/api/jump').send({ nodeId: 't.a' });
     expect(noToken.status).toBe(401);
 
-    const dup = await agent.post('/api/auth/register').send({ username: '用户甲', password: 'secret1' });
+    const dup = await agent.post('/api/auth/register').send({ username: '用户甲', password: 'Secret12' });
     expect(dup.status).toBe(400);
 
     const withToken = await agent.get('/api/nodes/t.a').set(auth(token));
     expect(withToken.status).toBe(200);
+  });
+
+  it('账号标准模板：注册绑定邮箱、邮箱唯一、密码规则、找回密码验证码重置', async () => {
+    // 弱密码（<8 位）注册被拒
+    const weak = await agent.post('/api/auth/register').send({ username: 'u_weak', password: 'short1' });
+    expect(weak.status).toBe(400);
+    // 正常注册（含邮箱）
+    const m = await agent.post('/api/auth/register').send({ username: 'u_mail', password: 'Secret12', email: 'a@b.com' });
+    expect(m.status).toBe(201);
+    // 邮箱重复被拒
+    const dupMail = await agent.post('/api/auth/register').send({ username: 'u_mail2', password: 'Secret12', email: 'a@b.com' });
+    expect(dupMail.status).toBe(400);
+    // me 返回邮箱
+    const me = await agent.get('/api/auth/me').set(auth(m.body.token));
+    expect(me.body.user.email).toBe('a@b.com');
+    // 找回密码：发码（存库）→ 取码 → 重置 → 新密码登录
+    await agent.post('/api/auth/forgot').send({ email: 'a@b.com' }).expect(200);
+    const codeRow = db.prepare("SELECT code FROM email_codes WHERE email='a@b.com' ORDER BY id DESC LIMIT 1").get();
+    expect(codeRow).toBeTruthy();
+    const reset = await agent
+      .post('/api/auth/reset-password')
+      .send({ email: 'a@b.com', code: codeRow.code, password: 'NewPass99' });
+    expect(reset.status).toBe(200);
+    // 旧密码登录失败、新密码成功
+    const oldLogin = await agent.post('/api/auth/login').send({ username: 'u_mail', password: 'Secret12' });
+    expect(oldLogin.status).toBe(401);
+    const newLogin = await agent.post('/api/auth/login').send({ username: 'u_mail', password: 'NewPass99' });
+    expect(newLogin.status).toBe(200);
+    // 错误验证码重置被拒
+    const badCode = await agent
+      .post('/api/auth/reset-password')
+      .send({ email: 'a@b.com', code: '000000', password: 'Xxx12345' });
+    expect(badCode.status).toBe(400);
   });
 
   it('状态机：初始 dim；通关前置后邻居推导为 open；dim 闯关 403', async () => {

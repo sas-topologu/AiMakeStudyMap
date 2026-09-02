@@ -100,7 +100,7 @@ describe('导航 API', () => {
   const auth = (t) => ({ Authorization: `Bearer ${t}` });
 
   async function registerUser(username) {
-    const res = await agent.post('/api/auth/register').send({ username, password: 'secret1' });
+    const res = await agent.post('/api/auth/register').send({ username, password: 'Secret12' });
     return res.body.token;
   }
 
