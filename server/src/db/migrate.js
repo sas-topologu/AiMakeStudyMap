@@ -264,6 +264,31 @@ const migrations = [
       CREATE INDEX idx_email_codes_email ON email_codes (email, purpose);
     `,
   },
+  {
+    version: 8,
+    name: '008_reports',
+    // 举报/滥用流程：举报表 + 内容「隐藏」标志（管理 AI 判 remove 后不展示）。
+    // 举报由任务桥 report_review 处理（AI 初审 → actioned(隐藏/下架)/dismissed）。保留内容原文以便复核。
+    sql: `
+      CREATE TABLE reports (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        target_type TEXT NOT NULL CHECK (target_type IN ('post', 'reply', 'creation', 'monument', 'node')),
+        target_id   TEXT NOT NULL,
+        reporter_id INTEGER NOT NULL,
+        reason      TEXT NOT NULL,
+        status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'actioned', 'dismissed')),
+        verdict     TEXT,
+        created_at  TEXT NOT NULL,
+        resolved_at TEXT
+      );
+      CREATE INDEX idx_reports_status ON reports (status);
+
+      ALTER TABLE posts      ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE replies    ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE creations  ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE pioneers   ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 export function runMigrations(db) {

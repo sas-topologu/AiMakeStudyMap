@@ -106,7 +106,7 @@ export function postsRouter({ db, secret }) {
         `SELECT p.*, u.username,
                 (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id) AS replyCount
          FROM posts p JOIN users u ON u.id = p.user_id
-         WHERE p.node_id = ?`
+         WHERE p.node_id = ? AND p.hidden = 0`
       )
       .all(nodeId);
 
@@ -152,7 +152,7 @@ export function postsRouter({ db, secret }) {
   router.get('/posts/:id', (req, res) => {
     const post = db
       .prepare(
-        `SELECT p.*, u.username FROM posts p JOIN users u ON u.id = p.user_id WHERE p.id = ?`
+        `SELECT p.*, u.username FROM posts p JOIN users u ON u.id = p.user_id WHERE p.id = ? AND p.hidden = 0`
       )
       .get(req.params.id);
     if (!post) throw errors.notFound('帖子不存在');

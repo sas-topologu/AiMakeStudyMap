@@ -610,6 +610,41 @@ describe('API 集成', () => {
     expect(after.body.nodes.some((n) => n.id === 'x.rej')).toBe(false);
   });
 
+  it('举报/滥用：提交举报建任务，管理桥 remove 后内容隐藏；dismissed 不处理', async () => {
+    const token = await registerUser('rep_admin'); // 管理员
+    // 用 SQL 直接建一则帖子供举报（绕过发帖的状态 guard）
+    const uid = (await agent.get('/api/auth/me').set(auth(token))).body.user.id;
+    const postInsert = db.prepare(
+      "INSERT INTO posts (node_id, user_id, title, body, created_at) VALUES ('t.a', ?, '待举报帖', '违规内容正文', datetime('now'))"
+    ).run(uid);
+    const postId = postInsert.lastInsertRowid;
+    // 另一用户举报该帖
+    const reporter = await registerUser('rep_user');
+    const rep = await agent
+      .post('/api/reports')
+      .set(auth(reporter))
+      .send({ targetType: 'post', targetId: String(postId), reason: '包含不当内容，请审核' });
+    expect(rep.status).toBe(201);
+    expect(rep.body.status).toBe('pending');
+    // 非管理员看不到队列，管理员可见
+    expect((await agent.get('/api/reports').set(auth(reporter))).status).toBe(403);
+    const queue = await agent.get('/api/reports').set(auth(token));
+    expect(queue.body.reports).toHaveLength(1);
+    // 管理桥拉任务 → 读被举报内容 → 回写 remove → 内容隐藏
+    const tasks = await agent.get('/api/ai-tasks').set(auth(token));
+    const task = tasks.body.tasks.find((t) => t.type === 'report_review');
+    expect(task).toBeTruthy();
+    const detail = await agent.get(`/api/ai-tasks/${task.id}`).set(auth(token));
+    expect(detail.body.reported.content).toHaveProperty('body', '违规内容正文');
+    const done = await agent
+      .post(`/api/ai-tasks/${task.id}/result`)
+      .set(auth(token))
+      .send({ verdict: 'remove', model: 'test-ai' });
+    expect(done.body.status).toBe('actioned');
+    const hidden = db.prepare("SELECT hidden FROM posts WHERE id=? ").get(postId);
+    expect(hidden.hidden).toBe(1);
+  });
+
   it('投稿功能冻结：本周拒次达阈值后投稿被限（每周重置）', async () => {
     const token = await registerUser('agent6'); // 管理员
     const mk = (id, pre) => makeCard(id, { prerequisites: pre ? [pre] : [], difficulty: 3 });

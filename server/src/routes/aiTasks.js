@@ -31,20 +31,24 @@ export function aiTasksRouter({ db, secret }) {
     });
   });
 
-  // 读单个任务详情（管理员）：card_review 返回投稿卡内容供管理 AI 审核
+  // 读单个任务详情（管理员）：card_review 返回投稿卡；report_review 返回被举报内容（供 AI 初审）
   router.get('/ai-tasks/:id', authRequired(secret), (req, res) => {
     if (!isAdmin(req.user.id)) throw errors.forbidden('需管理员权限管理任务');
     const task = db.prepare('SELECT * FROM ai_tasks WHERE id = ?').get(req.params.id);
     if (!task) throw errors.notFound('任务不存在');
     let card = null;
+    let reported = null;
     if (task.type === 'card_review') {
       const sub = db.prepare('SELECT * FROM card_submissions WHERE id = ?').get(task.subject_id);
       if (sub) {
         const parsed = JSON.parse(sub.card_json);
         card = parsed.length === 1 ? parsed[0] : parsed;
       }
+    } else if (task.type === 'report_review') {
+      const report = db.prepare('SELECT * FROM reports WHERE id = ?').get(task.subject_id);
+      if (report) reported = { ...report, content: readTargetContent(db, report.target_type, report.target_id) };
     }
-    res.json({ id: task.id, type: task.type, status: task.status, subjectId: task.subject_id, card });
+    res.json({ id: task.id, type: task.type, status: task.status, subjectId: task.subject_id, card, reported });
   });
 
   // 回写一审结论（管理员）：approve → 进公示(ai_reviewed)待复审；reject → 打回
@@ -86,7 +90,23 @@ export function aiTasksRouter({ db, secret }) {
       ).run(JSON.stringify({ reason: rejectReason }), model ?? null, doneAt, task.id);
       return res.json({ ok: true, status: 'rejected', reason: rejectReason });
     }
-    // 其他任务类型（correction/report/legal）
+    // 举报任务：remove → 隐藏目标内容；否则标记 dismissed
+    if (task.type === 'report_review') {
+      const report = db.prepare("SELECT * FROM reports WHERE id = ? AND status = 'pending'").get(task.subject_id);
+      if (!report) throw errors.notFound('举报不存在或已处理');
+      if (verdict === 'remove') {
+        hideTarget(db, report.target_type, report.target_id);
+        db.prepare("UPDATE reports SET status='actioned', verdict='remove', resolved_at=? WHERE id=?").run(doneAt, report.id);
+      } else {
+        db.prepare("UPDATE reports SET status='dismissed', verdict=?, resolved_at=? WHERE id=?").run(verdict ?? 'dismissed', doneAt, report.id);
+      }
+      db.prepare(
+        "UPDATE ai_tasks SET status='done', verdict=?, result_json=?, model=?, done_at=? WHERE id=?"
+      ).run(verdict ?? 'dismissed', JSON.stringify(req.body), model ?? null, doneAt, task.id);
+      return res.json({ ok: true, status: verdict === 'remove' ? 'actioned' : 'dismissed' });
+    }
+
+    // 其他任务类型（correction/legal）
     db.prepare(
       "UPDATE ai_tasks SET status='done', verdict=?, result_json=?, model=?, done_at=? WHERE id=?"
     ).run(verdict ?? 'done', JSON.stringify(req.body), model ?? null, doneAt, task.id);
@@ -120,4 +140,23 @@ export function aiTasksRouter({ db, secret }) {
   });
 
   return router;
+}
+
+// 读取被举报对象内容（供管理 AI 初审；举报即授权查看该对象）
+function readTargetContent(db, type, id) {
+  const t = {
+    post: () => db.prepare('SELECT id, node_id, title, body, user_id, created_at FROM posts WHERE id = ?').get(id),
+    reply: () => db.prepare('SELECT id, post_id, body, user_id, created_at FROM replies WHERE id = ?').get(id),
+    creation: () => db.prepare('SELECT id, node_id, type, title, content, user_id, created_at FROM creations WHERE id = ?').get(id),
+    monument: () => db.prepare('SELECT node_id, message, user_id, created_at FROM pioneers WHERE node_id = ? AND message != ?').get(id, ''),
+    node: () => { const n = db.prepare('SELECT id, title, subject, summary FROM nodes WHERE id = ?').get(id); return n; },
+  }[type];
+  return t ? t() : null;
+}
+
+// 隐藏目标内容（remove）：置对应表 hidden=1；node 无 hidden 列（知识卡走勘误/审核，不隐藏）
+function hideTarget(db, type, id) {
+  const table = { post: 'posts', reply: 'replies', creation: 'creations', monument: 'pioneers' }[type];
+  if (!table) return;
+  db.prepare(`UPDATE ${table} SET hidden = 1 WHERE id = ?`).run(id);
 }
