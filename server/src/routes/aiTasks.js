@@ -31,6 +31,22 @@ export function aiTasksRouter({ db, secret }) {
     });
   });
 
+  // 管理面板聚合（管理员抽查留档）：投稿/举报/勘误队列 + 任务计数
+  router.get('/ai-tasks/manage', authRequired(secret), (req, res) => {
+    if (!isAdmin(req.user.id)) throw errors.forbidden('需管理员权限');
+    const submissions = db
+      .prepare('SELECT id, node_id, user_id, status, review_due_at, created_at, reviewed_at FROM card_submissions ORDER BY created_at DESC LIMIT 100')
+      .all();
+    const reports = db
+      .prepare("SELECT id, target_type, target_id, reason, status, verdict, created_at FROM reports WHERE status IN ('pending','actioned') ORDER BY created_at DESC LIMIT 100")
+      .all();
+    const corrections = db
+      .prepare("SELECT c.id, c.node_id, n.title AS node_title, c.body, c.status, c.review_note, c.created_at FROM corrections c JOIN nodes n ON n.id=c.node_id WHERE c.status='pending' ORDER BY c.created_at DESC LIMIT 100")
+      .all();
+    const pendingTasks = db.prepare("SELECT type, COUNT(*) n FROM ai_tasks WHERE status='pending' GROUP BY type").all();
+    res.json({ submissions, reports, corrections, pendingTasks });
+  });
+
   // 读单个任务详情（管理员）：card_review 返回投稿卡；report_review 返回被举报内容（供 AI 初审）
   router.get('/ai-tasks/:id', authRequired(secret), (req, res) => {
     if (!isAdmin(req.user.id)) throw errors.forbidden('需管理员权限管理任务');

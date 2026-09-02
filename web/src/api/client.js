@@ -88,6 +88,9 @@ export const api = {
   agentPlan: (target) => request('/agent/plan', { method: 'POST', body: { target } }),
   agentSpec: () => request('/agent/spec'),
   agentCards: (cards) => request('/agent/cards', { method: 'POST', body: { cards } }),
+  mySubmissions: () => request('/agent/submissions/mine'),
+  // 管理面板（管理员：抽查留档 + 队列）
+  manageOverview: () => request('/ai-tasks/manage'),
   // 社交：讨论区 / 纪念碑 / 速通榜
   monument: (id) => request(`/nodes/${encodeURIComponent(id)}/monument`),
   leaveMonument: (id, message) =>

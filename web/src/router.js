@@ -6,6 +6,7 @@ import MapView from './views/MapView.vue';
 import ShareView from './views/ShareView.vue';
 import PublicShareView from './views/PublicShareView.vue';
 import AdminView from './views/AdminView.vue';
+import ManageView from './views/ManageView.vue';
 import ChangelogView from './views/ChangelogView.vue';
 import { getToken } from './api/client.js';
 
@@ -19,6 +20,7 @@ export const router = createRouter({
     { path: '/share', name: 'share', component: ShareView }, // 创作页（需登录）
     { path: '/share/:id', name: 'share-view', component: PublicShareView, meta: { public: true } }, // 公开只读
     { path: '/admin', name: 'admin', component: AdminView, meta: { admin: true } },
+    { path: '/manage', name: 'manage', component: ManageView, meta: { admin: true } }, // 管理面板（抽查留档）
     { path: '/changelog', name: 'changelog', component: ChangelogView, meta: { public: true } }, // 公开
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
