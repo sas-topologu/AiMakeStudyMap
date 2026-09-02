@@ -47,6 +47,13 @@ export function aiTasksRouter({ db, secret }) {
     } else if (task.type === 'report_review') {
       const report = db.prepare('SELECT * FROM reports WHERE id = ?').get(task.subject_id);
       if (report) reported = { ...report, content: readTargetContent(db, report.target_type, report.target_id) };
+    } else if (task.type === 'correction_review') {
+      const corr = db
+        .prepare(
+          `SELECT c.*, n.title AS node_title FROM corrections c JOIN nodes n ON n.id = c.node_id WHERE c.id = ?`
+        )
+        .get(task.subject_id);
+      reported = corr ?? null;
     }
     res.json({ id: task.id, type: task.type, status: task.status, subjectId: task.subject_id, card, reported });
   });
@@ -105,8 +112,21 @@ export function aiTasksRouter({ db, secret }) {
       ).run(verdict ?? 'dismissed', JSON.stringify(req.body), model ?? null, doneAt, task.id);
       return res.json({ ok: true, status: verdict === 'remove' ? 'actioned' : 'dismissed' });
     }
+    // 勘误任务：approve → 受理（status approved）；reject → 驳回并留 review_note
+    if (task.type === 'correction_review') {
+      const corr = db.prepare("SELECT * FROM corrections WHERE id = ? AND status = 'pending'").get(task.subject_id);
+      if (!corr) throw errors.notFound('勘误不存在或已处理');
+      const approved = verdict === 'approve';
+      db.prepare(
+        "UPDATE corrections SET status=?, review_note=?, reviewed_at=? WHERE id=?"
+      ).run(approved ? 'approved' : 'rejected', reason || '', doneAt, corr.id);
+      db.prepare(
+        "UPDATE ai_tasks SET status='done', verdict=?, result_json=?, model=?, done_at=? WHERE id=?"
+      ).run(approved ? 'approve' : 'reject', JSON.stringify(req.body), model ?? null, doneAt, task.id);
+      return res.json({ ok: true, status: approved ? 'approved' : 'rejected' });
+    }
 
-    // 其他任务类型（correction/legal）
+    // 其他任务类型（legal）
     db.prepare(
       "UPDATE ai_tasks SET status='done', verdict=?, result_json=?, model=?, done_at=? WHERE id=?"
     ).run(verdict ?? 'done', JSON.stringify(req.body), model ?? null, doneAt, task.id);

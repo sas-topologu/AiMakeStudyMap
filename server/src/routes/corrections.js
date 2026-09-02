@@ -2,6 +2,7 @@
 // 语义说明：approve 表示「接受为待办任务」；真正合并由维护者按《知识卡制作规范》
 // 修改 content/cards 源卡后跑 npm run import 完成版本迭代（本阶段不做自动改卡）
 import { Router } from 'express';
+import crypto from 'node:crypto';
 import { z } from 'zod';
 import { ApiError, errors, parseBody } from '../errors.js';
 import { authRequired, quotaRefresher } from '../middleware/auth.js';
@@ -34,7 +35,12 @@ export function correctionsRouter({ db, secret }) {
     const info = db
       .prepare('INSERT INTO corrections (node_id, user_id, body, created_at) VALUES (?, ?, ?, ?)')
       .run(nodeId, req.user.id, body, new Date().toISOString());
-    res.status(201).json({ id: info.lastInsertRowid, status: 'pending' });
+    // 建一条 correction_review 任务，由管理 Agent 桥审核（批准/驳回）
+    const taskId = crypto.randomBytes(8).toString('hex');
+    db.prepare(
+      "INSERT INTO ai_tasks (id, type, role, status, subject_id, created_at) VALUES (?, 'correction_review', 'operator', 'pending', ?, ?)"
+    ).run(taskId, String(info.lastInsertRowid), new Date().toISOString());
+    res.status(201).json({ id: info.lastInsertRowid, status: 'pending', taskId });
   });
 
   // 我的勘误及处理状态

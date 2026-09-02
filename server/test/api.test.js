@@ -645,6 +645,39 @@ describe('API 集成', () => {
     expect(hidden.hidden).toBe(1);
   });
 
+  it('勘误接入任务桥：提交建任务，管理 AI approve 受理 / reject 驳回', async () => {
+    const token = await registerUser('corr_admin'); // 管理员
+    const sub = await agent
+      .post('/api/nodes/t.a/corrections')
+      .set(auth(token))
+      .send({ body: '这里表述有误，建议修正为……' });
+    expect(sub.status).toBe(201);
+    expect(sub.body.taskId).toBeTruthy();
+    // 拉任务 → 读勘误内容 → approve
+    const tasks = await agent.get('/api/ai-tasks').set(auth(token));
+    const task = tasks.body.tasks.find((t) => t.type === 'correction_review');
+    expect(task).toBeTruthy();
+    const detail = await agent.get(`/api/ai-tasks/${task.id}`).set(auth(token));
+    expect(detail.body.reported.node_title).toBe('t.a 标题');
+    const done = await agent
+      .post(`/api/ai-tasks/${task.id}/result`)
+      .set(auth(token))
+      .send({ verdict: 'approve', model: 'test-ai' });
+    expect(done.body.status).toBe('approved');
+    const row = db.prepare('SELECT status FROM corrections WHERE id = ?').get(sub.body.id);
+    expect(row.status).toBe('approved');
+    // 提交另一条 → reject
+    const sub2 = await agent.post('/api/nodes/t.a/corrections').set(auth(token)).send({ body: '另一条勘误内容' });
+    const tasks2 = await agent.get('/api/ai-tasks').set(auth(token));
+    const t2 = tasks2.body.tasks.find((t) => t.type === 'correction_review');
+    const done2 = await agent
+      .post(`/api/ai-tasks/${t2.id}/result`)
+      .set(auth(token))
+      .send({ verdict: 'reject', reason: '内容无误', model: 'test-ai' });
+    expect(done2.body.status).toBe('rejected');
+    expect(db.prepare('SELECT status FROM corrections WHERE id = ?').get(sub2.body.id).status).toBe('rejected');
+  });
+
   it('投稿功能冻结：本周拒次达阈值后投稿被限（每周重置）', async () => {
     const token = await registerUser('agent6'); // 管理员
     const mk = (id, pre) => makeCard(id, { prerequisites: pre ? [pre] : [], difficulty: 3 });
