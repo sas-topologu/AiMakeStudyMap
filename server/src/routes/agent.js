@@ -148,6 +148,109 @@ export function agentRouter({ db, secret }) {
     });
   });
 
+  // ---- 定制课程（方案乙：返回已排好「学习顺序」的课程大纲，供任意 Agent 接入定制）----
+  // 与 plan 相比，course 把前置闭包按「基础→目标」拓扑排序成学习序列，并标注每步状态与缺卡。
+  // Agent 拿到后可据此定制学习计划；链上某概念无卡（目标缺卡）时返回 missing，提示先补制。
+  router.post('/agent/course', authOptional(secret), (req, res) => {
+    const target = String(req.body?.target ?? '').trim();
+    if (!target) throw errors.validation('请给出要掌握的技能（节点 id 或关键词）');
+
+    const nodes = nodeBasic(db);
+    let targetId = nodes.find((n) => n.id === target)?.id;
+    if (!targetId) {
+      const lower = target.toLowerCase();
+      const byTitle = nodes.filter((n) => n.title.toLowerCase().includes(lower));
+      if (byTitle.length) targetId = byTitle[0].id;
+      else {
+        const bySummary = db
+          .prepare('SELECT id FROM nodes WHERE LOWER(summary) LIKE ? ORDER BY id')
+          .all(`%${lower}%`);
+        if (bySummary.length) targetId = bySummary[0].id;
+      }
+    }
+    if (!targetId) {
+      return res.status(200).json({
+        missing: true,
+        query: target,
+        message:
+          `「${target}」暂未收录为知识卡。可 POST /api/agent/spec 取规范、按规范制作后 ` +
+          `POST /api/agent/cards 提交入库，再重新定制课程。`,
+      });
+    }
+
+    // 前置邻接（from 的前置是 to）：from -> [to...]
+    const preOf = new Map();
+    for (const e of allEdges(db)) {
+      if (e.type !== 'prerequisite') continue;
+      if (!preOf.has(e.from_id)) preOf.set(e.from_id, []);
+      preOf.get(e.from_id).push(e.to_id);
+    }
+    // 闭包（目标 + 全部前置）
+    const closure = new Set([targetId]);
+    const queue = [targetId];
+    while (queue.length) {
+      const cur = queue.pop();
+      for (const p of preOf.get(cur) ?? []) {
+        if (!closure.has(p)) {
+          closure.add(p);
+          queue.push(p);
+        }
+      }
+    }
+
+    // Kahn 分层：layer[id] = 从「无前置根」到该节点的步数（基础小、目标大）；学习顺序 = layer 升序
+    const dependentsOf = new Map([...closure].map((id) => [id, []])); // to -> [from...]（依赖该前置的节点）
+    const inDeg = new Map([...closure].map((id) => [id, 0]));
+    for (const from of closure) {
+      for (const to of preOf.get(from) ?? []) {
+        if (!closure.has(to)) continue;
+        dependentsOf.get(to).push(from);
+        inDeg.set(from, inDeg.get(from) + 1);
+      }
+    }
+    const layer = new Map();
+    let frontier = [...closure].filter((id) => inDeg.get(id) === 0).sort();
+    for (const id of frontier) layer.set(id, 0);
+    while (frontier.length) {
+      const next = [];
+      for (const cur of frontier) {
+        for (const from of dependentsOf.get(cur) ?? []) {
+          layer.set(from, Math.max(layer.get(from) ?? 0, layer.get(cur) + 1));
+          inDeg.set(from, inDeg.get(from) - 1);
+          if (inDeg.get(from) === 0) next.push(from);
+        }
+      }
+      next.sort();
+      frontier = next;
+    }
+    for (const id of closure) if (!layer.has(id)) layer.set(id, 0);
+
+    const states = batchEffectiveStates(db, req.user?.id ?? null, [...closure]);
+    const info = new Map(nodes.map((n) => [n.id, n]));
+    // 保留已点亮但不计「待学」：steps 仍展示全部闭包（含已掌握），供 agent 排复习/掌握率
+    const steps = [...closure]
+      .map((id) => ({
+        id,
+        title: info.get(id)?.title ?? id,
+        subject: info.get(id)?.subject ?? '',
+        difficulty: info.get(id)?.difficulty ?? 1,
+        state: states[id],
+        layer: layer.get(id) ?? 0,
+      }))
+      .sort((a, b) => a.layer - b.layer || (a.id < b.id ? -1 : 1));
+    const masteredCount = [...closure].filter((id) => states[id] === 'lit' || states[id] === 'passed').length;
+
+    res.json({
+      target: targetId,
+      targetTitle: info.get(targetId)?.title ?? targetId,
+      total: closure.size,
+      remaining: closure.size - masteredCount,
+      mastered: masteredCount,
+      progressPct: closure.size ? Math.round((masteredCount / closure.size) * 100) : 0,
+      steps,
+    });
+  });
+
   // ---- 制作规范 + 模板（供外部 Agent 按规范制作） ----
   router.get('/agent/spec', (req, res) => {
     let spec = '';

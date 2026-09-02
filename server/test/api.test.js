@@ -468,6 +468,45 @@ describe('API 集成', () => {
     expect(res.body.template).toHaveProperty('questionBank');
   });
 
+  it('AI 定制课程：返回按学习顺序的课程大纲，缺卡返回 missing', async () => {
+    const token = await registerUser('agent4');
+    // 5 节点链 t.a ← t.b ← t.c ← t.d ← t.e：定制 t.e 应得到基础→目标的学习序
+    const res = await agent
+      .post('/api/agent/course')
+      .set(auth(token))
+      .send({ target: 't.e' });
+    expect(res.status).toBe(200);
+    expect(res.body.target).toBe('t.e');
+    expect(res.body.steps.map((s) => s.id)).toEqual(['t.a', 't.b', 't.c', 't.d', 't.e']); // 按层排序
+    // layer 递增（基础层小、目标层大）
+    const layers = res.body.steps.map((s) => s.layer);
+    expect([...layers]).toEqual([...layers].sort((a, b) => a - b));
+    expect(res.body.remaining).toBe(5);
+    expect(res.body.mastered).toBe(0);
+    // t.a/t.b 已点亮 → 计入 mastered、remaining 减少
+    const { id: uid } = await agent.get('/api/auth/me').set(auth(token)).then((r) => r.body.user);
+    db.prepare(
+      "INSERT INTO user_node_state (user_id, node_id, state, lit_at, updated_at) VALUES (?,?,?,?,?)"
+    ).run(uid, 't.a', 'lit', new Date().toISOString(), new Date().toISOString());
+    const after = await agent
+      .post('/api/agent/course')
+      .set(auth(token))
+      .send({ target: 't.e' });
+    expect(after.body.mastered).toBe(1);
+    expect(after.body.remaining).toBe(4);
+    expect(after.body.steps.find((s) => s.id === 't.a').state).toBe('lit');
+    // 匿名也可用（学习序列），状态标 dim
+    const anon = await agent.post('/api/agent/course').send({ target: 't.e' });
+    expect(anon.body.steps).toHaveLength(5);
+    expect(anon.body.steps[0].state).toBe('dim');
+    // 目标缺卡 → missing 提示
+    const missing = await agent
+      .post('/api/agent/course')
+      .set(auth(token))
+      .send({ target: '不存在技能' });
+    expect(missing.body.missing).toBe(true);
+  });
+
   it('AI 制作卡提交：合法卡入库 / 重复导入幂等 / 非法卡报错', async () => {
     const token = await registerUser('agent3');
     const mk = (id, pre) => makeCard(id, { prerequisites: pre ? [pre] : [], difficulty: 3 });
