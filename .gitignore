@@ -1,13 +1,20 @@
+# 依赖
 node_modules/
-server/data/
+
+# 前端构建产物（由后端静态托管，构建时生成）
 web/dist/
 
-# 日志与缓存
-*.log
-*.db-journal
-*.db-wal
-.DS_Store
-Thumbs.db
+# 数据库与运行时数据（含用户数据，千万不要提交）
+server/data/
 
-# 测试产物
-coverage/
+# 备份
+backups/
+
+# 环境变量与密钥
+.env
+.env.local
+tools/management-ai/config.json
+
+# 日志与临时
+*.log
+.tmp-*

@@ -1,4 +1,4 @@
-# 知识星图（Knowledge Starmap）
+# AI点星谱（Knowledge Starmap）
 
 > 公益知识图谱学习平台：每个知识点是星图上的一颗星，通过前置/相关关系连成技能树式闯关学习路线。
 
