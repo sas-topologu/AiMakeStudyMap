@@ -30,7 +30,7 @@ function sendMail(to, subject, text) {
   return Promise.resolve();
 }
 
-export function authRouter({ db, secret }) {
+export function authRouter({ db, secret, adminKey }) {
   const router = Router();
 
   router.post('/register', (req, res) => {
@@ -42,7 +42,11 @@ export function authRouter({ db, secret }) {
     }
     const hash = bcrypt.hashSync(password, 10);
     const month = new Date().toISOString().slice(0, 7);
-    const isAdmin = db.prepare('SELECT COUNT(*) AS n FROM users').get().n === 0 ? 1 : 0;
+    // 管理员：只通过「管理员密钥」开启（adminKey 匹配即管理员）；不再"首个注册自动成为管理员"。
+    // 未配置 adminKey（开发/测试兼容）时回退为首个注册自动管理员。
+    const adminKeyInput = String(req.body?.adminKey ?? '').trim();
+    const isAdmin = adminKey ? (adminKeyInput && adminKeyInput === adminKey ? 1 : 0)
+      : (db.prepare('SELECT COUNT(*) AS n FROM users').get().n === 0 ? 1 : 0);
     const info = db
       .prepare(
         "INSERT INTO users (username, password_hash, created_at, quota_month, is_admin, email) VALUES (?, ?, datetime('now'), ?, ?, ?)"
@@ -61,6 +65,15 @@ export function authRouter({ db, secret }) {
     }
     const token = jwt.sign({ uid: row.id, username: row.username }, secret, { expiresIn: '7d' });
     res.json({ token, user: { id: row.id, username: row.username } });
+  });
+
+  // 用管理员密钥开启管理员权限（需登录 + 提交正确的 STARMAP_ADMIN_KEY）
+  router.post('/promote-admin', authRequired(secret), (req, res) => {
+    if (!adminKey) throw errors.validation('平台未开启管理员密钥机制');
+    const keyInput = String(req.body?.adminKey ?? '').trim();
+    if (!keyInput || keyInput !== adminKey) throw errors.forbidden('管理员密钥不正确');
+    db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(req.user.id);
+    res.json({ ok: true, isAdmin: true, message: '已开启管理员权限' });
   });
 
   router.get('/me', authRequired(secret), quotaRefresher(db), (req, res) => {

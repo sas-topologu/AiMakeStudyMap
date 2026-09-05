@@ -61,6 +61,8 @@ export function createApp(
   db,
   {
     secret = process.env.STARMAP_SECRET || 'dev-secret',
+    // 管理员密钥：配置后仅持有此密钥的注册用户/登录者才能成为管理员（消除"首个注册自动管理员"抢注）
+    adminKey = process.env.STARMAP_ADMIN_KEY || '',
     pioneerTimer = true,
     // 前端产物目录；传 null 显式关闭静态托管
     staticDir = DEFAULT_STATIC_DIR,
@@ -73,7 +75,7 @@ export function createApp(
 
   const timerService = createTimerService(db);
   const quizService = createQuizService(db, timerService);
-  const ctx = { db, secret, timerService, quizService, assetsDir };
+  const ctx = { db, secret, adminKey, timerService, quizService, assetsDir };
 
   app.get('/api/health', (req, res) => {
     res.json({ ok: true, contentVersion: getContentVersion(db) });

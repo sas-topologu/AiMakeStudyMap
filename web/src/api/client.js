@@ -58,9 +58,11 @@ async function request(path, { method = 'GET', body } = {}) {
 
 export const api = {
   // 认证
-  register: (username, password) => request('/auth/register', { method: 'POST', body: { username, password } }),
+  register: (username, password, email, adminKey) =>
+    request('/auth/register', { method: 'POST', body: { username, password, email: email || undefined, adminKey: adminKey || undefined } }),
   login: (username, password) => request('/auth/login', { method: 'POST', body: { username, password } }),
   me: () => request('/auth/me'),
+  promoteAdmin: (adminKey) => request('/auth/promote-admin', { method: 'POST', body: { adminKey } }),
   // 星图
   neighborhood: (id, depth = 2) => request(`/graph/neighborhood/${encodeURIComponent(id)}?depth=${depth}`),
   graphAll: () => request('/graph/all'),

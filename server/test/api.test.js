@@ -691,4 +691,25 @@ describe('API 集成', () => {
     const frozen = await agent.post('/api/agent/cards').set(auth(token)).send({ cards: [mk('x.fr3', 't.a')] });
     expect(frozen.status).toBe(429);
   });
+
+  it('管理员密钥机制：配置 key 后，须凭密钥注册/登录才成为管理员；不再首个注册自动', async () => {
+    const kAgent = request(createApp(db, { secret: 'test-secret', adminKey: 'test-admin-k' }));
+    // 注册不带 key → 普通用户（不再是首个自动管理员）
+    const r1 = await kAgent.post('/api/auth/register').send({ username: 'me_nokey', password: 'Secret12' });
+    const me1 = await kAgent.get('/api/auth/me').set(auth(r1.body.token));
+    expect(me1.body.user.is_admin).toBe(false);
+    // promote-admin 带正确 key → 开启管理员
+    const pr = await kAgent.post('/api/auth/promote-admin').set(auth(r1.body.token)).send({ adminKey: 'test-admin-k' });
+    expect(pr.status).toBe(200);
+    const me2 = await kAgent.get('/api/auth/me').set(auth(r1.body.token));
+    expect(me2.body.user.is_admin).toBe(true);
+    // promote-admin 错误 key → 403
+    const r2 = await kAgent.post('/api/auth/register').send({ username: 'me_bad', password: 'Secret12' });
+    const bad = await kAgent.post('/api/auth/promote-admin').set(auth(r2.body.token)).send({ adminKey: 'wrong' });
+    expect(bad.status).toBe(403);
+    // 注册时直接带 key → 即管理员
+    const r3 = await kAgent.post('/api/auth/register').send({ username: 'me_key', password: 'Secret12', adminKey: 'test-admin-k' });
+    const me3 = await kAgent.get('/api/auth/me').set(auth(r3.body.token));
+    expect(me3.body.user.is_admin).toBe(true);
+  });
 });

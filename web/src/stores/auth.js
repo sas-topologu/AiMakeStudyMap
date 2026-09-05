@@ -21,10 +21,15 @@ export const useAuthStore = defineStore('auth', {
       this._apply(token, user);
       this.refreshQuota();
     },
-    async register(username, password) {
-      const { token, user } = await api.register(username, password);
+    async register(username, password, email, adminKey) {
+      const { token, user } = await api.register(username, password, email, adminKey);
       this._apply(token, user);
       this.refreshQuota();
+    },
+    // 用管理员密钥开启管理员权限（登录后）
+    async promoteAdmin(adminKey) {
+      await api.promoteAdmin(adminKey);
+      await this.refreshQuota();
     },
     _apply(token, user) {
       setToken(token);

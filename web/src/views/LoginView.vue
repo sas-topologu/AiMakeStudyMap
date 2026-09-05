@@ -22,6 +22,22 @@
           placeholder="密码（至少 6 位）"
           autocomplete="current-password"
         />
+        <template v-if="mode === 'register'">
+          <input
+            v-model.trim="email"
+            class="input"
+            type="email"
+            placeholder="邮箱（选填，用于找回密码）"
+            autocomplete="email"
+          />
+          <input
+            v-model.trim="adminKey"
+            class="input"
+            type="password"
+            placeholder="管理员密钥（选填，填对即可获得管理员权限）"
+            autocomplete="off"
+          />
+        </template>
         <p v-if="error" class="error-text">{{ error }}</p>
         <button class="btn primary block" :disabled="loading" type="submit">
           {{ loading ? '请稍候…' : mode === 'login' ? '登录' : '注册并登录' }}
@@ -45,6 +61,8 @@ const router = useRouter();
 const mode = ref('login');
 const username = ref('');
 const password = ref('');
+const email = ref('');
+const adminKey = ref('');
 const error = ref('');
 const loading = ref(false);
 
@@ -53,7 +71,7 @@ async function submit() {
   loading.value = true;
   try {
     if (mode.value === 'login') await auth.login(username.value, password.value);
-    else await auth.register(username.value, password.value);
+    else await auth.register(username.value, password.value, email.value, adminKey.value);
     router.push('/');
   } catch (e) {
     error.value = e.message;
