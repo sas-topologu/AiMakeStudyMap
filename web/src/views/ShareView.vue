@@ -5,7 +5,7 @@
   <div class="share-page">
     <header class="share-header panel">
       <button class="icon-btn" title="返回" @click="$router.back()">←</button>
-      <b>分享我的知识星图</b>
+      <b>分享我的智点星谱</b>
       <span class="toolbar-spacer" />
       <div class="theme-picker">
         <button

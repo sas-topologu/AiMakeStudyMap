@@ -2,7 +2,7 @@
 <template>
   <div class="login-page">
     <div class="panel login-card">
-      <h1 class="login-title">知识星图</h1>
+      <h1 class="login-title">智点星谱</h1>
       <p class="muted">知识如山，亦如星网</p>
       <div class="login-tabs">
         <button :class="{ active: mode === 'login' }" @click="mode = 'login'">登录</button>

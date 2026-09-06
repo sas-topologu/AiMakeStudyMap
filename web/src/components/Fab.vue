@@ -6,12 +6,13 @@
       <template v-if="open">
         <button key="search" class="fab-item" title="搜索 / 跃迁" @click="showSearch = true">🔍</button>
         <button key="map" class="fab-item" title="大地图（宏观视图）" @click="goMap">🌌</button>
-        <button key="share" class="fab-item" title="分享星图" @click="goShare">🔗</button>
+        <button v-if="feat.share" key="share" class="fab-item" title="分享星图" @click="goShare">🔗</button>
         <button v-if="auth.isAdmin" key="admin" class="fab-item" title="审核队列" @click="goAdmin">🛡</button>
         <button v-if="auth.isAdmin" key="manage" class="fab-item" title="管理面板（抽查留档）" @click="goManage">🗂</button>
         <button key="changelog" class="fab-item" title="关于 / 更新日志" @click="goChangelog">📜</button>
         <button key="progress" class="fab-item" title="我的进度" @click="showProgress = true">📊</button>
         <button
+          v-if="feat.navigation"
           key="hot"
           class="fab-item"
           :class="{ 'hot-active': nav.hotActive }"
@@ -20,7 +21,7 @@
         >
           🔥
         </button>
-        <button key="timer" class="fab-item" title="计时状态" @click="onTimer">
+        <button v-if="feat.timer" key="timer" class="fab-item" title="计时状态" @click="onTimer">
           ⏱
           <span v-if="timer.active" class="fab-badge">{{ timer.remainingText }}</span>
         </button>
@@ -46,6 +47,7 @@ import { useAuthStore } from '../stores/auth.js';
 import { useTimerStore } from '../stores/timer.js';
 import { useUiStore } from '../stores/ui.js';
 import { useNavStore } from '../stores/navigation.js';
+import { useDevSettings } from '../composables/useDevSettings.js';
 import SearchPanel from './SearchPanel.vue';
 import ProgressPanel from './ProgressPanel.vue';
 import TimerDialog from './TimerDialog.vue';
@@ -56,6 +58,7 @@ const timer = useTimerStore();
 const ui = useUiStore();
 const nav = useNavStore();
 const router = useRouter();
+const feat = useDevSettings().features;
 
 const open = ref(false);
 const showSearch = ref(false);

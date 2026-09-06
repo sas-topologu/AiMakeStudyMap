@@ -88,6 +88,25 @@
         <button class="btn ghost block" @click="dev.reset()">恢复默认</button>
       </div>
 
+      <!-- 功能模块开关（最小可行性：可关闭模块） -->
+      <div class="fx-row fx-col">
+        <span>
+          <b>功能模块</b>
+          <small class="muted">关闭后对应入口/效果隐藏（默认全开）</small>
+        </span>
+        <label v-for="m in MODULES" :key="m.key" class="fx-module">
+          <span>
+            {{ m.label }}
+            <small class="muted">{{ m.desc }}</small>
+          </span>
+          <input
+            type="checkbox"
+            :checked="dev.features[m.key]"
+            @change="dev.toggleFeature(m.key)"
+          />
+        </label>
+      </div>
+
       <div class="dialog-actions">
         <button class="btn ghost" @click="$emit('close')">关闭</button>
       </div>
@@ -97,7 +116,7 @@
 
 <script setup>
 import { useFxSettings } from '../composables/useFxSettings.js';
-import { useDevSettings, METEOR_GEARS, DEV_SLIDERS } from '../composables/useDevSettings.js';
+import { useDevSettings, METEOR_GEARS, DEV_SLIDERS, MODULES } from '../composables/useDevSettings.js';
 
 defineProps({
   visible: { type: Boolean, default: false },

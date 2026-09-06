@@ -2,7 +2,7 @@
 <template>
   <div class="share-page">
     <header class="share-header panel">
-      <b>来自 {{ owner || '…' }} 的知识星图</b>
+      <b>来自 {{ owner || '…' }} 的智点星谱</b>
       <span class="toolbar-spacer" />
       <button class="btn primary" @click="$router.push('/login')">我也要点亮星图</button>
     </header>

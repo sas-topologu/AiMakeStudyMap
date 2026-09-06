@@ -18,5 +18,5 @@ const app = createApp(db);
 
 const port = Number(process.env.PORT) || 3000;
 app.listen(port, () => {
-  console.log(`知识星图 API 已启动: http://localhost:${port}`);
+  console.log(`智点星谱 API 已启动: http://localhost:${port}`);
 });

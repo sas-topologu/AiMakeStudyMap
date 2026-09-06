@@ -30,7 +30,7 @@ export function buildReport(db) {
     .prepare('SELECT version, summary, created_at FROM changelogs ORDER BY version DESC LIMIT 1')
     .get();
 
-  lines.push('===== 知识星图维护报告 =====');
+  lines.push('===== 智点星谱维护报告 =====');
   lines.push('');
   lines.push('【结构健康】');
   lines.push(`  节点 ${nodes.length} / 边 ${edges.length} / 题目 ${questionCount}`);

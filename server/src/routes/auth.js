@@ -94,7 +94,7 @@ export function authRouter({ db, secret, adminKey }) {
     db.prepare(
       'INSERT INTO email_codes (email, code, purpose, expires_at, created_at) VALUES (?, ?, ?, ?, ?)'
     ).run(email, code, 'reset', new Date(Date.now() + 15 * 60 * 1000).toISOString(), nowIso());
-    sendMail(email, '知识星图 · 找回密码', `验证码：${code}（15 分钟内有效）`);
+    sendMail(email, '智点星谱 · 找回密码', `验证码：${code}（15 分钟内有效）`);
     res.json({ ok: true, message: '验证码已发送（若未配置邮件服务，验证码见服务端控制台）' });
   });
 

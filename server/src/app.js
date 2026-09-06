@@ -106,7 +106,7 @@ export function createApp(
     app.get('/', (req, res) => {
       res
         .type('text/plain; charset=utf-8')
-        .send('知识星图：前端尚未构建，请先运行 npm run build（产物目录 web/dist 不存在）');
+        .send('智点星谱：前端尚未构建，请先运行 npm run build（产物目录 web/dist 不存在）');
     });
   }
 

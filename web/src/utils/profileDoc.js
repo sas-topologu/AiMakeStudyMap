@@ -107,8 +107,8 @@ export function buildProfileDoc(d) {
 
   push(`# 个人知识画像 · ${d.user?.username ?? '用户'}`);
   push('');
-  push(`> 生成时间：${fmtTime(d.generatedAt)}（知识星图自动导出）`);
-  push('> 本文档汇总用户在「知识星图」的闯关进度、学习投入与公开发布内容，');
+  push(`> 生成时间：${fmtTime(d.generatedAt)}（智点星谱自动导出）`);
+  push('> 本文档汇总用户在「智点星谱」的闯关进度、学习投入与公开发布内容，');
   push('> 供 AI 助手快速了解其知识结构、兴趣领域与学习风格，可直接作为个人助手/个性化模型的背景资料。');
   push('');
   push('---');

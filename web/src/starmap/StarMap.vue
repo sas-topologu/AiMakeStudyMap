@@ -290,6 +290,7 @@ function psShouldRun() {
     ps &&
     ps.groups.length > 0 &&
     !ps.autoOff &&
+    dev.features.particles &&
     fx.particleSpeedEffective.value > 0 &&
     !document.hidden
   );
@@ -345,7 +346,7 @@ let meteorRaf = null;
 let meteorLast = 0;
 
 function meteorShouldRun() {
-  return (renderer?.meteors?.size ?? 0) > 0 && !fx.reducedMotion.value && !document.hidden;
+  return (renderer?.meteors?.size ?? 0) > 0 && !fx.reducedMotion.value && dev.features.meteor && !document.hidden;
 }
 
 function syncMeteorLoop() {

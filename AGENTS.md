@@ -1,11 +1,11 @@
-# AI点星谱 · 项目交接文档（AGENTS.md）
+# 智点星谱 · 项目交接文档（AGENTS.md）
 
 > 本文件供 AI 编码 Agent（DeepSeek Harness / Claude Code / Codex / Copilot 等）在本项目内接手开发时使用。
 > 先读本文件，再读 `docs/工程规划.md`、`docs/维护手册.md`、`docs/知识卡制作规范.md`（制卡必读）。
 
 ## 1. 项目是什么
 
-公益知识图谱学习平台「AI点星谱」：节点是知识卡（一颗星），前置/相关关系连成星图（技能树式闯关学习）。前端 Canvas 星图（自研渲染器），后端 Node/Express/SQLite。
+公益知识图谱学习平台「智点星谱」：节点是知识卡（一颗星），前置/相关关系连成星图（技能树式闯关学习）。前端 Canvas 星图（自研渲染器），后端 Node/Express/SQLite。
 
 - 内容：`content/cards/*.json`（75 张卡，数理化生+计算机 6 学科，内容版本 v15）
 - 运行：`http://localhost:3000`（前端为构建产物 `web/dist`，由 server 静态托管）
