@@ -30,6 +30,20 @@
     </header>
     <p class="home-hint">单击星点切换中心 · 双击 / 长按打开知识卡 · 滚轮缩放</p>
 
+    <!-- 空知识库引导：工具不依赖内置知识库，空库也能用 -->
+    <div
+      v-if="!starmap.loading && !loadError && starmap.nodes.length === 0"
+      class="panel empty-kb"
+    >
+      <b>知识库还是空的</b>
+      <p class="muted">这个工具不依赖内置知识库，空库也能正常使用。你可以用以下任一方式补充知识卡：</p>
+      <ul class="muted">
+        <li>让 AI 按规范制作知识卡（搜索/导航 → AI 辅助路线规划 → 缺卡可让 AI 制作），审核通过即入库</li>
+        <li>把已有知识卡 JSON 放进 <code>content/cards/</code>，再运行 <code>npm run import</code></li>
+        <li>可选：从云端终端拉取一份 —— <code>node tools/deploy/pull-cards.mjs &lt;终端地址&gt;</code>，再 <code>npm run import</code></li>
+      </ul>
+    </div>
+
     <!-- 连线风格切换（多风格对比挑选） -->
     <div class="edge-mode-panel panel">
       <span class="muted small">连线风格</span>

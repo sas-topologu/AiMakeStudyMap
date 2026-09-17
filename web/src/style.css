@@ -1441,6 +1441,32 @@ code {
   opacity: 0.55;
 }
 
+/* ---- 空知识库引导 ---- */
+.empty-kb {
+  max-width: 620px;
+  margin: 12px auto;
+  padding: 14px 18px;
+}
+
+.empty-kb b {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.empty-kb ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.empty-kb code {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12px;
+}
+
 .nav-type-option {
   display: flex;
   align-items: baseline;

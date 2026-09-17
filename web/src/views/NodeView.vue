@@ -21,9 +21,11 @@
     <template v-else-if="card">
       <nav class="node-tabs">
         <button :class="{ active: tab === 'card' }" @click="tab = 'card'">知识卡</button>
-        <button :class="{ active: tab === 'discuss' }" @click="tab = 'discuss'">讨论区</button>
-        <button :class="{ active: tab === 'create' }" @click="tab = 'create'">二创区</button>
-        <button :class="{ active: tab === 'speedrun' }" @click="tab = 'speedrun'">速通榜</button>
+        <template v-if="dev.enabled('community')">
+          <button :class="{ active: tab === 'discuss' }" @click="tab = 'discuss'">讨论区</button>
+          <button :class="{ active: tab === 'create' }" @click="tab = 'create'">二创区</button>
+          <button :class="{ active: tab === 'speedrun' }" @click="tab = 'speedrun'">速通榜</button>
+        </template>
       </nav>
 
       <!-- 知识卡正文（教材化 + 分层折叠 + 阅读模式） -->
@@ -322,6 +324,7 @@ import { api } from '../api/client.js';
 import { useTimerStore } from '../stores/timer.js';
 import { useStarmapStore } from '../stores/starmap.js';
 import { useUiStore } from '../stores/ui.js';
+import { useDevSettings } from '../composables/useDevSettings.js';
 import RichText from '../components/RichText.vue';
 import TermLayers from '../components/TermLayers.vue';
 import TimerDialog from '../components/TimerDialog.vue';
@@ -349,6 +352,14 @@ const router = useRouter();
 const timer = useTimerStore();
 const starmap = useStarmapStore();
 const ui = useUiStore();
+const dev = useDevSettings();
+// 社区类 Tab（讨论/二创/速通）随「社区」模块开关与终端模式联动
+watch(
+  () => dev.enabled('community'),
+  (on) => {
+    if (!on && tab.value !== 'card') tab.value = 'card';
+  }
+);
 
 const nodeId = computed(() => route.params.id);
 
