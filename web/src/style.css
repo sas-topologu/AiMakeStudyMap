@@ -1408,6 +1408,39 @@ code {
   font-size: 11px;
 }
 
+/* ---- 终端指向 ---- */
+.fx-terminal {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.fx-terminal .input {
+  flex: 1;
+}
+
+.fx-terminal-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fx-terminal-list .chip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fx-terminal-list .chip.active {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.fx-module.off {
+  opacity: 0.55;
+}
+
 .nav-type-option {
   display: flex;
   align-items: baseline;

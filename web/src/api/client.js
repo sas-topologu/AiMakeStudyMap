@@ -2,7 +2,46 @@
 // - 自动携带 JWT（localStorage）
 // - 错误统一抛 { code, message, status }
 // - 401 清 token 并触发 onUnauthorized 回调（由 main.js 注入跳转逻辑）
+// - 【去中心化】终端指向：客户端可指向任意终端。默认唯一指向「你的终端」
+//   （构建时注入 VITE_TERMINAL_URL；未注入则用当前页面地址=部署的终端）；可切换并记住历史。
 const TOKEN_KEY = 'starmap.token';
+const TERMINAL_CUR = 'starmap:terminal.current';
+const TERMINAL_LIST = 'starmap:terminal.list';
+
+// 内置默认终端（唯一）：VITE_TERMINAL_URL > 当前页面 origin（部署即终端）
+const DEFAULT_TERMINAL = (() => {
+  try {
+    return import.meta.env?.VITE_TERMINAL_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+  } catch {
+    return typeof window !== 'undefined' ? window.location.origin : '';
+  }
+})();
+
+export function getTerminalBase() {
+  return localStorage.getItem(TERMINAL_CUR) || DEFAULT_TERMINAL;
+}
+export function getTerminalDefault() {
+  return DEFAULT_TERMINAL;
+}
+export function getTerminalList() {
+  try {
+    const l = JSON.parse(localStorage.getItem(TERMINAL_LIST) || '[]');
+    return Array.isArray(l) ? l.filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+export function setTerminal(url) {
+  const u = String(url || '').trim().replace(/\/+$/, '');
+  if (!u) return;
+  localStorage.setItem(TERMINAL_CUR, u);
+  const list = getTerminalList();
+  const next = [u, ...list.filter((x) => x !== u)].slice(0, 12);
+  localStorage.setItem(TERMINAL_LIST, JSON.stringify(next));
+}
+export function resetTerminal() {
+  localStorage.removeItem(TERMINAL_CUR);
+}
 
 export class ApiError extends Error {
   constructor(code, message, status = 0) {
@@ -29,7 +68,7 @@ async function request(path, { method = 'GET', body } = {}) {
 
   let res;
   try {
-    res = await fetch(`/api${path}`, {
+    res = await fetch(`${getTerminalBase()}/api${path}`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),

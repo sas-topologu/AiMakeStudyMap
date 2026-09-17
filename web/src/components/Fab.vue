@@ -6,13 +6,13 @@
       <template v-if="open">
         <button key="search" class="fab-item" title="搜索 / 跃迁" @click="showSearch = true">🔍</button>
         <button key="map" class="fab-item" title="大地图（宏观视图）" @click="goMap">🌌</button>
-        <button v-if="feat.share" key="share" class="fab-item" title="分享星图" @click="goShare">🔗</button>
+        <button v-if="dev.enabled('share')" key="share" class="fab-item" title="分享星图" @click="goShare">🔗</button>
         <button v-if="auth.isAdmin" key="admin" class="fab-item" title="审核队列" @click="goAdmin">🛡</button>
         <button v-if="auth.isAdmin" key="manage" class="fab-item" title="管理面板（抽查留档）" @click="goManage">🗂</button>
         <button key="changelog" class="fab-item" title="关于 / 更新日志" @click="goChangelog">📜</button>
         <button key="progress" class="fab-item" title="我的进度" @click="showProgress = true">📊</button>
         <button
-          v-if="feat.navigation"
+          v-if="dev.enabled('navigation')"
           key="hot"
           class="fab-item"
           :class="{ 'hot-active': nav.hotActive }"
@@ -21,7 +21,7 @@
         >
           🔥
         </button>
-        <button v-if="feat.timer" key="timer" class="fab-item" title="计时状态" @click="onTimer">
+        <button v-if="dev.enabled('timer')" key="timer" class="fab-item" title="计时状态" @click="onTimer">
           ⏱
           <span v-if="timer.active" class="fab-badge">{{ timer.remainingText }}</span>
         </button>

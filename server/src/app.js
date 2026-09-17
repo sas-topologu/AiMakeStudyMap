@@ -73,6 +73,17 @@ export function createApp(
   const app = express();
   app.use(express.json());
 
+  // 去中心化：客户端可指向任意终端（跨域）。鉴权用 Authorization 头而非 Cookie，
+  // 故放开跨域来源并允许 Authorization 头即可（不使用 cookie 凭证）。
+  app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Vary', 'Origin');
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+    return next();
+  });
+
   const timerService = createTimerService(db);
   const quizService = createQuizService(db, timerService);
   const ctx = { db, secret, adminKey, timerService, quizService, assetsDir };

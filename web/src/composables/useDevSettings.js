@@ -2,6 +2,7 @@
 // 前端 UI 效果难以文字精确描述，需要人类实际体验后微调——此处把「距离与速度」相关的要素集中为滑扭，
 // 持久化到 localStorage（`starmap:dev` / `starmap:devMode` / `starmap:features.v1`）。
 import { reactive, ref } from 'vue';
+import { useTerminal } from './useTerminal.js';
 
 const DEV_KEY = 'starmap:dev.v2'; // v2：新默认基线（旧 starmap:dev 不再读取）
 const MODE_KEY = 'starmap:devMode';
@@ -71,6 +72,9 @@ const settings = reactive(load());
 const devMode = ref(localStorage.getItem(MODE_KEY) === '1');
 const features = reactive(loadFeatures());
 
+// 单机模式（终端在本机）下不可用的模块：社区/分享依赖云端多人环境
+export const LOCAL_UNAVAILABLE = ['community', 'share'];
+
 function persist() {
   localStorage.setItem(DEV_KEY, JSON.stringify(settings));
 }
@@ -79,10 +83,23 @@ function persistFeatures() {
 }
 
 export function useDevSettings() {
+  const terminal = useTerminal();
+  // 最终是否启用 = 用户开关 且 （非单机模式 或 该模块在单机下可用）
+  const enabled = (key) => {
+    if (!features[key]) return false;
+    if (terminal.isLocal.value && LOCAL_UNAVAILABLE.includes(key)) return false;
+    return true;
+  };
+  // 该模块在当前终端模式下是否可用（供 UI 提示灰显原因）
+  const available = (key) => !(terminal.isLocal.value && LOCAL_UNAVAILABLE.includes(key));
+
   return {
     settings,
     devMode,
     features,
+    enabled,
+    available,
+    isLocalMode: terminal.isLocal,
     set(field, value) {
       settings[field] = value;
       persist();

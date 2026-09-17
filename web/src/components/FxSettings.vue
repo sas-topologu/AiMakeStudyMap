@@ -88,20 +88,61 @@
         <button class="btn ghost block" @click="dev.reset()">恢复默认</button>
       </div>
 
+      <!-- 终端指向（客户端可指向任意终端：本地/云端） -->
+      <div class="fx-row fx-col">
+        <span>
+          <b>终端</b>
+          <small class="muted">
+            当前：{{ termBase }}（{{ termIsLocal ? '单机模式' : '云端模式' }}）
+          </small>
+        </span>
+        <div class="fx-terminal">
+          <input v-model.trim="termInput" class="input" placeholder="终端地址，如 https://example.com" />
+          <button class="btn ghost" :disabled="!termInput" @click="switchTerminal()">切换</button>
+        </div>
+        <div v-if="termList.length" class="fx-terminal-list">
+          <button
+            v-for="u in termList"
+            :key="u"
+            class="chip"
+            :class="{ active: u === termBase }"
+            @click="switchTerminal(u)"
+          >
+            {{ u }}
+          </button>
+        </div>
+        <button
+          v-if="termBase !== termDefault"
+          class="btn ghost block"
+          @click="resetTerminal"
+        >
+          恢复默认（本地终端）
+        </button>
+        <small class="muted">
+          单机模式（终端在本机）下，社区/分享类功能不可用；切换终端后会重新加载。
+        </small>
+      </div>
+
       <!-- 功能模块开关（最小可行性：可关闭模块） -->
       <div class="fx-row fx-col">
         <span>
           <b>功能模块</b>
           <small class="muted">关闭后对应入口/效果隐藏（默认全开）</small>
         </span>
-        <label v-for="m in MODULES" :key="m.key" class="fx-module">
+        <label
+          v-for="m in MODULES"
+          :key="m.key"
+          class="fx-module"
+          :class="{ off: !dev.available(m.key) }"
+        >
           <span>
             {{ m.label }}
-            <small class="muted">{{ m.desc }}</small>
+            <small class="muted">{{ dev.available(m.key) ? m.desc : '单机模式不可用（连云端终端后可用）' }}</small>
           </span>
           <input
             type="checkbox"
             :checked="dev.features[m.key]"
+            :disabled="!dev.available(m.key)"
             @change="dev.toggleFeature(m.key)"
           />
         </label>
@@ -115,8 +156,10 @@
 </template>
 
 <script setup>
+import { ref } from 'vue';
 import { useFxSettings } from '../composables/useFxSettings.js';
 import { useDevSettings, METEOR_GEARS, DEV_SLIDERS, MODULES } from '../composables/useDevSettings.js';
+import { useTerminal } from '../composables/useTerminal.js';
 
 defineProps({
   visible: { type: Boolean, default: false },
@@ -132,6 +175,26 @@ const SPEED_OPTIONS = [
 
 const fx = useFxSettings();
 const dev = useDevSettings();
+
+// 终端指向
+const term = useTerminal();
+const termBase = term.base;
+const termList = term.list;
+const termIsLocal = term.isLocal;
+const termDefault = term.defaultBase;
+const termInput = ref('');
+
+function switchTerminal(url) {
+  const u = url || termInput.value;
+  if (!u) return;
+  term.set(u);
+  // 切换后重新拉取该终端的数据
+  location.reload();
+}
+function resetTerminal() {
+  term.reset();
+  location.reload();
+}
 
 function formatVal(s) {
   const v = dev.settings[s.key];
