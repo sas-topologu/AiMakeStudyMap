@@ -712,4 +712,41 @@ describe('API 集成', () => {
     const me3 = await kAgent.get('/api/auth/me').set(auth(r3.body.token));
     expect(me3.body.user.is_admin).toBe(true);
   });
+
+  it('两级管理员：本机认领终端管理员 / 授权密钥开二级 / 二级不可设密钥', async () => {
+    const owner = await registerUser('owner1'); // 未配置引导密钥时首个注册=终端管理员
+    // 本机认领（supertest 请求来自 127.0.0.1）
+    const claim = await agent.post('/api/auth/claim-owner').set(auth(owner));
+    expect(claim.status).toBe(200);
+    expect(claim.body.adminLevel).toBe(1);
+    // owner 生成授权密钥
+    const mk = await agent.post('/api/terminal/access-key').set(auth(owner)).send({});
+    expect(mk.status).toBe(200);
+    const key = mk.body.key;
+    expect(key).toBeTruthy();
+    // 终端信息（公开）
+    const info = await agent.get('/api/terminal/info');
+    expect(info.body.hasAccessKey).toBe(true);
+    // 另一用户凭授权密钥 → 二级管理员
+    const sub = await registerUser('sub1');
+    const pr = await agent.post('/api/auth/promote-admin').set(auth(sub)).send({ adminKey: key });
+    expect(pr.status).toBe(200);
+    expect(pr.body.adminLevel).toBe(2);
+    const me = await agent.get('/api/auth/me').set(auth(sub));
+    expect(me.body.user.adminLevel).toBe(2);
+    expect(me.body.user.isOwner).toBe(false);
+    // 二级管理员：可看管理队列（有管理能力）
+    expect((await agent.get('/api/reports').set(auth(sub))).status).toBe(200);
+    expect((await agent.get('/api/ai-tasks').set(auth(sub))).status).toBe(200);
+    // 二级管理员：不能设置/查看授权密钥
+    expect((await agent.post('/api/terminal/access-key').set(auth(sub)).send({})).status).toBe(403);
+    expect((await agent.get('/api/terminal/access-key').set(auth(sub))).status).toBe(403);
+    // owner 可查看
+    const view = await agent.get('/api/terminal/access-key').set(auth(owner));
+    expect(view.status).toBe(200);
+    expect(view.body.key).toBe(key);
+    // 错误密钥 → 403
+    const wrong = await agent.post('/api/auth/promote-admin').set(auth(sub)).send({ adminKey: 'nope-nope' });
+    expect(wrong.status).toBe(403);
+  });
 });

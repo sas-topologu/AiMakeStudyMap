@@ -23,6 +23,7 @@ import { profileRouter } from './routes/profile.js';
 import { agentRouter } from './routes/agent.js';
 import { aiTasksRouter } from './routes/aiTasks.js';
 import { reportsRouter } from './routes/reports.js';
+import { terminalRouter } from './routes/terminal.js';
 import { promotePioneers } from './services/pioneerService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -71,6 +72,9 @@ export function createApp(
   } = {}
 ) {
   const app = express();
+  // 只信任本机（Nginx）作为代理：这样 req.ip 是 Nginx 记录的客户端真实 IP，
+  // 且客户端伪造的 X-Forwarded-For 不会生效 —— 用于"仅本机可认领终端管理员"的判定。
+  app.set('trust proxy', 'loopback');
   app.use(express.json());
 
   // 去中心化：客户端可指向任意终端（跨域）。鉴权用 Authorization 头而非 Cookie，
@@ -109,6 +113,7 @@ export function createApp(
   app.use('/api', agentRouter(ctx));
   app.use('/api', aiTasksRouter(ctx));
   app.use('/api', reportsRouter(ctx));
+  app.use('/api', terminalRouter(ctx));
 
   // 静态托管（在 API 路由之后、错误处理之前挂载）
   if (staticDir && fs.existsSync(staticDir)) {

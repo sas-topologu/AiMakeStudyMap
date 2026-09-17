@@ -102,6 +102,11 @@ export const api = {
   login: (username, password) => request('/auth/login', { method: 'POST', body: { username, password } }),
   me: () => request('/auth/me'),
   promoteAdmin: (adminKey) => request('/auth/promote-admin', { method: 'POST', body: { adminKey } }),
+  claimOwner: () => request('/auth/claim-owner', { method: 'POST' }),
+  // 终端信息与授权密钥（授权密钥仅终端管理员可管理）
+  terminalInfo: () => request('/terminal/info'),
+  accessKeyGet: () => request('/terminal/access-key'),
+  accessKeySet: (body) => request('/terminal/access-key', { method: 'POST', body }),
   // 星图
   neighborhood: (id, depth = 2) => request(`/graph/neighborhood/${encodeURIComponent(id)}?depth=${depth}`),
   graphAll: () => request('/graph/all'),

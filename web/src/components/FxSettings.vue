@@ -123,6 +123,40 @@
         </small>
       </div>
 
+      <!-- 管理员（两级） -->
+      <div class="fx-row fx-col">
+        <span>
+          <b>管理员</b>
+          <small class="muted">
+            <template v-if="auth.isOwner">终端管理员（完全权限）</template>
+            <template v-else-if="auth.isAdmin">二级管理员（可审核/投稿，不能管终端）</template>
+            <template v-else>普通用户</template>
+          </small>
+        </span>
+        <!-- 本机运行时可直接认领终端管理员 -->
+        <button
+          v-if="termIsLocal && auth.isLoggedIn && !auth.isOwner"
+          class="btn ghost block"
+          @click="claimOwner"
+        >
+          认领为终端管理员（本机）
+        </button>
+        <!-- 终端管理员：管理授权密钥 -->
+        <template v-if="auth.isOwner">
+          <div class="fx-terminal">
+            <input v-model.trim="accessKey" class="input" placeholder="授权密钥（留空=自动生成）" />
+            <button class="btn ghost" @click="saveAccessKey">保存</button>
+          </div>
+          <div class="fx-terminal">
+            <button class="btn ghost" @click="genAccessKey">随机生成</button>
+            <button class="btn ghost" @click="loadAccessKey">查看当前</button>
+            <button class="btn ghost" @click="clearAccessKey">清空</button>
+          </div>
+          <small v-if="shownKey" class="muted">当前授权密钥：{{ shownKey }}</small>
+          <small class="muted">把密钥发给他人：其登录后凭它成为二级管理员。</small>
+        </template>
+      </div>
+
       <!-- 功能模块开关（最小可行性：可关闭模块） -->
       <div class="fx-row fx-col">
         <span>
@@ -160,6 +194,9 @@ import { ref } from 'vue';
 import { useFxSettings } from '../composables/useFxSettings.js';
 import { useDevSettings, METEOR_GEARS, DEV_SLIDERS, MODULES } from '../composables/useDevSettings.js';
 import { useTerminal } from '../composables/useTerminal.js';
+import { useAuthStore } from '../stores/auth.js';
+import { useUiStore } from '../stores/ui.js';
+import { api } from '../api/client.js';
 
 defineProps({
   visible: { type: Boolean, default: false },
@@ -194,6 +231,59 @@ function switchTerminal(url) {
 function resetTerminal() {
   term.reset();
   location.reload();
+}
+
+// ---- 管理员（两级） ----
+const auth = useAuthStore();
+const ui = useUiStore();
+const accessKey = ref('');
+const shownKey = ref('');
+
+async function claimOwner() {
+  try {
+    await auth.claimOwner();
+    ui.toast(auth.isOwner ? '已成为终端管理员' : '认领失败（只能在终端本机认领）', auth.isOwner ? 'success' : 'error');
+  } catch (e) {
+    ui.toast(e.message, 'error');
+  }
+}
+async function saveAccessKey() {
+  try {
+    const r = await api.accessKeySet({ key: accessKey.value });
+    shownKey.value = r.key || '';
+    ui.toast(r.hasAccessKey ? '授权密钥已保存' : '授权密钥已清空', 'success');
+  } catch (e) {
+    ui.toast(e.message, 'error');
+  }
+}
+async function genAccessKey() {
+  try {
+    const r = await api.accessKeySet({});
+    shownKey.value = r.key || '';
+    accessKey.value = r.key || '';
+    ui.toast('已生成新的授权密钥', 'success');
+  } catch (e) {
+    ui.toast(e.message, 'error');
+  }
+}
+async function loadAccessKey() {
+  try {
+    const r = await api.accessKeyGet();
+    shownKey.value = r.key || '';
+    accessKey.value = r.key || '';
+  } catch (e) {
+    ui.toast(e.message, 'error');
+  }
+}
+async function clearAccessKey() {
+  try {
+    await api.accessKeySet({ action: 'clear' });
+    shownKey.value = '';
+    accessKey.value = '';
+    ui.toast('授权密钥已清空', 'success');
+  } catch (e) {
+    ui.toast(e.message, 'error');
+  }
 }
 
 function formatVal(s) {

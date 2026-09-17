@@ -42,16 +42,23 @@ export function authRouter({ db, secret, adminKey }) {
     }
     const hash = bcrypt.hashSync(password, 10);
     const month = new Date().toISOString().slice(0, 7);
-    // 管理员：只通过「管理员密钥」开启（adminKey 匹配即管理员）；不再"首个注册自动成为管理员"。
-    // 未配置 adminKey（开发/测试兼容）时回退为首个注册自动管理员。
+    // 两级管理员：admin_level 1=终端管理员(owner) / 2=二级管理员。
+    // 注册时带对「终端引导密钥」(STARMAP_ADMIN_KEY) → 直接成为终端管理员；
+    // 二级管理员不在此产生（由 owner 设置授权密钥后，登录用 promote-admin 提升）。
+    // 未配置引导密钥（开发/测试兼容）时回退：首个注册自动成为终端管理员。
     const adminKeyInput = String(req.body?.adminKey ?? '').trim();
-    const isAdmin = adminKey ? (adminKeyInput && adminKeyInput === adminKey ? 1 : 0)
-      : (db.prepare('SELECT COUNT(*) AS n FROM users').get().n === 0 ? 1 : 0);
+    const adminLevel = adminKey
+      ? adminKeyInput && adminKeyInput === adminKey
+        ? 1
+        : 0
+      : db.prepare('SELECT COUNT(*) AS n FROM users').get().n === 0
+        ? 1
+        : 0;
     const info = db
       .prepare(
-        "INSERT INTO users (username, password_hash, created_at, quota_month, is_admin, email) VALUES (?, ?, datetime('now'), ?, ?, ?)"
+        'INSERT INTO users (username, password_hash, created_at, quota_month, is_admin, admin_level, email) VALUES (?, ?, datetime(\'now\'), ?, ?, ?, ?)'
       )
-      .run(username, hash, month, isAdmin, email || null);
+      .run(username, hash, month, adminLevel >= 1 ? 1 : 0, adminLevel, email || null);
     const user = { id: info.lastInsertRowid, username };
     const token = jwt.sign({ uid: user.id, username }, secret, { expiresIn: '7d' });
     res.status(201).json({ token, user });
@@ -67,19 +74,45 @@ export function authRouter({ db, secret, adminKey }) {
     res.json({ token, user: { id: row.id, username: row.username } });
   });
 
-  // 用管理员密钥开启管理员权限（需登录 + 提交正确的 STARMAP_ADMIN_KEY）
+  // 认领「终端管理员」：仅允许来自本机（loopback）的请求 —— 即"在终端本地登录就是管理员"。
+  // 云端部署时，可在服务器上对本机 3000 端口发起该请求来认领（无需密钥）。
+  router.post('/claim-owner', authRequired(secret), (req, res) => {
+    const ip = req.ip || req.socket?.remoteAddress || '';
+    const isLocal = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+    if (!isLocal) throw errors.forbidden('只能在本机（终端所在机器）认领终端管理员');
+    db.prepare('UPDATE users SET is_admin = 1, admin_level = 1 WHERE id = ?').run(req.user.id);
+    res.json({ ok: true, adminLevel: 1, message: '已认领终端管理员（完全权限）' });
+  });
+
+  // 用「授权密钥」开启二级管理员（owner 在终端设置里配置；客户端持密钥登录后调用）
   router.post('/promote-admin', authRequired(secret), (req, res) => {
-    if (!adminKey) throw errors.validation('平台未开启管理员密钥机制');
-    const keyInput = String(req.body?.adminKey ?? '').trim();
-    if (!keyInput || keyInput !== adminKey) throw errors.forbidden('管理员密钥不正确');
-    db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(req.user.id);
-    res.json({ ok: true, isAdmin: true, message: '已开启管理员权限' });
+    const keyInput = String(req.body?.adminKey ?? req.body?.key ?? '').trim();
+    if (!keyInput) throw errors.validation('请提供授权密钥');
+    const stored = db.prepare("SELECT value FROM meta WHERE key = 'access_key'").get()?.value;
+    const isOwnerKey = adminKey && keyInput === adminKey;
+    const isAccessKey = stored && keyInput === stored;
+    if (!isOwnerKey && !isAccessKey) throw errors.forbidden('授权密钥不正确');
+    const level = isOwnerKey ? 1 : 2;
+    db.prepare('UPDATE users SET is_admin = 1, admin_level = ? WHERE id = ?').run(level, req.user.id);
+    res.json({
+      ok: true,
+      adminLevel: level,
+      message: level === 1 ? '已开启终端管理员权限' : '已开启二级管理员权限',
+    });
   });
 
   router.get('/me', authRequired(secret), quotaRefresher(db), (req, res) => {
-    const row = db.prepare('SELECT is_admin, email FROM users WHERE id = ?').get(req.user.id);
+    const row = db.prepare('SELECT is_admin, admin_level, email FROM users WHERE id = ?').get(req.user.id);
+    const adminLevel = row?.admin_level ?? 0;
     res.json({
-      user: { id: req.user.id, username: req.user.username, is_admin: row?.is_admin === 1, email: row?.email || null },
+      user: {
+        id: req.user.id,
+        username: req.user.username,
+        is_admin: adminLevel >= 1,
+        adminLevel,
+        isOwner: adminLevel === 1,
+        email: row?.email || null,
+      },
       jumpQuota: getQuota(db, req.user.id),
     });
   });
