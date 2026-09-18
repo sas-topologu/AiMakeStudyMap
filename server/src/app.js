@@ -3,7 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
-import { errorHandler } from './errors.js';
+import { errorHandler, errors } from './errors.js';
 import { getContentVersion } from './db/contentRepo.js';
 import { createTimerService } from './services/timerService.js';
 import { createQuizService } from './services/quizService.js';
@@ -33,16 +33,33 @@ const DEFAULT_STATIC_DIR = path.resolve(__dirname, '../../web/dist');
 // 默认媒体资产目录：<仓库根>/content/assets
 const DEFAULT_ASSETS_DIR = path.resolve(__dirname, '../../content/assets');
 
-// 生产静态托管：SPA（history 路由）回退 + 缓存策略
+// 下载通道白名单：前端外壳只允许这些格式被下载。
+// 作用：防止把站点当作"任意文件分发通道"（如可执行文件、压缩包等），
+// 也防止 MIME 嗅探把静态文件当可执行内容。用户内容（图片/附件）走 /api/assets，另有可配置白名单。
+const STATIC_EXTS = new Set([
+  '.html', '.js', '.mjs', '.css', '.json', '.svg', '.png', '.jpg', '.jpeg',
+  '.gif', '.webp', '.ico', '.woff', '.woff2', '.ttf', '.otf', '.eot', '.txt', '.webmanifest',
+]);
+
+// 生产静态托管：下载格式限制 + SPA（history 路由）回退 + 缓存策略
+// - 非白名单扩展名 → 404（下载通道受限）
 // - assets/ 下为带内容 hash 的构建产物 → immutable 长缓存
 // - index.html → no-cache（保证发版即生效）
 // - 除 /api 前缀外的 GET（且接受 html）一律回退到 index.html
 function mountStatic(app, distDir) {
   const indexHtml = path.join(distDir, 'index.html');
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    if (req.path.startsWith('/api')) return next();
+    const ext = path.extname(req.path).toLowerCase();
+    if (ext && !STATIC_EXTS.has(ext)) return next(errors.notFound('不支持的下载格式'));
+    return next();
+  });
   app.use(
     express.static(distDir, {
       index: false, // 根路径交给 SPA 回退统一处理
       setHeaders(res, filePath) {
+        res.setHeader('X-Content-Type-Options', 'nosniff'); // 防 MIME 嗅探
         if (filePath.split(path.sep).includes('assets')) {
           res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
         } else if (filePath.endsWith('.html')) {
@@ -55,6 +72,7 @@ function mountStatic(app, distDir) {
     if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
     if (!req.accepts('html')) return next();
     res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.sendFile(indexHtml);
   });
 }
@@ -86,6 +104,7 @@ export function createApp(
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Vary', 'Origin');
+    res.setHeader('X-Content-Type-Options', 'nosniff'); // 全局防 MIME 嗅探
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     return next();
   });

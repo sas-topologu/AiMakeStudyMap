@@ -65,4 +65,25 @@ describe('静态托管与 SPA 回退', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('npm run build');
   });
+
+  it('下载通道限制：非白名单格式一律 404（不当作任意文件分发通道）', async () => {
+    // 在 dist 里放一个"不该被下载"的文件（可执行/压缩包）
+    fs.writeFileSync(path.join(distDir, 'evil.exe'), 'MZ...');
+    fs.writeFileSync(path.join(distDir, 'pack.zip'), 'PK...');
+    // 放一个白名单内的文件
+    fs.writeFileSync(path.join(distDir, 'logo.png'), 'PNG');
+
+    const agent = request(createApp(db, { secret: 's', pioneerTimer: false, staticDir: distDir }));
+
+    const exe = await agent.get('/evil.exe');
+    expect(exe.status).toBe(404);
+    expect(exe.text).not.toContain('假 index.html');
+
+    const zip = await agent.get('/pack.zip');
+    expect(zip.status).toBe(404);
+
+    const png = await agent.get('/logo.png');
+    expect(png.status).toBe(200);
+    expect(png.headers['x-content-type-options']).toBe('nosniff');
+  });
 });
