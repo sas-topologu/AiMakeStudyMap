@@ -1,0 +1,62 @@
+# 自动构建「手机客户端 APK」（GitHub 云端构建，无需你本地装 Android SDK）
+# 触发方式：仓库页面 → Actions → 选 “Build Android APK” → Run workflow → 跑完在该次运行里下载 APK
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      terminal_url:
+        description: '客户端默认指向的终端地址（留空则用仓库变量 TERMINAL_URL）'
+        required: false
+        default: ''
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 写入终端地址并构建前端
+        env:
+          INPUT_URL: ${{ github.event.inputs.terminal_url }}
+          VAR_URL: ${{ vars.TERMINAL_URL }}
+        run: |
+          URL="${INPUT_URL:-${VAR_URL:-https://aimakestudymap.online}}"
+          echo "客户端默认指向：$URL"
+          echo "VITE_TERMINAL_URL=$URL" > web/.env.production
+          npm run build
+
+      - name: 准备 Capacitor 工程
+        run: |
+          cd mobile
+          node -e "const fs=require('fs');fs.rmSync('www',{recursive:true,force:true});fs.cpSync('../web/dist','www',{recursive:true});"
+          npm install
+          npx cap add android
+          npx cap sync android
+
+      - name: 构建 APK
+        run: |
+          cd mobile/android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: zhidian-starmap-apk
+          path: mobile/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error

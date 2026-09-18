@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "智点星谱 — 单机全功能的知识学习工具；云端作为数据仓库与社区",
+  "main": "desktop/main.cjs",
   "workspaces": [
     "server",
     "web",
@@ -20,7 +21,59 @@
     "audit": "node content/tools/audit.js",
     "management-ai": "node tools/management-ai/index.mjs",
     "pull-cards": "node tools/deploy/pull-cards.mjs",
+    "desktop": "electron .",
+    "desktop:dist": "electron-builder --win --publish never",
     "test": "npm test -w server",
     "deploy": "npm run build && npm run import && npm start"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "better-sqlite3": "^12.2.0",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "electron": "^44.4.3",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "online.aimakestudymap.desktop",
+    "productName": "智点星谱",
+    "artifactName": "ZhidianStarmap-Setup-${version}.${ext}",
+    "asar": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "desktop/**",
+      "server/src/**",
+      "content/cards/**",
+      "content/tools/**",
+      "content/schema/**",
+      "content/assets/**",
+      "web/dist/**",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    }
   }
 }

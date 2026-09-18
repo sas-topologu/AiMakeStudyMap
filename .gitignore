@@ -21,3 +21,10 @@ tools/management-ai/config.json
 # 日志与临时
 *.log
 .tmp-*
+
+# 安装包构建产物
+release/
+mobile/www/
+mobile/android/
+mobile/node_modules/
+web/.env.production

@@ -14,7 +14,8 @@ echo "== git pull =="
 git pull --ff-only
 
 echo "== npm install =="
-npm install
+# 服务器不需要 Electron（PC 打包才用），跳过其二进制下载，避免拖慢部署与占空间
+ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm install
 
 echo "== build 前端 =="
 npm run build

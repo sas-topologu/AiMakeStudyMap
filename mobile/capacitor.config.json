@@ -1,0 +1,11 @@
+{
+  "appId": "online.aimakestudymap.app",
+  "appName": "智点星谱",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
