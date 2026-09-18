@@ -9,6 +9,21 @@ import { getContentVersion } from '../db/contentRepo.js';
 
 const TERMINAL_NAME = '智点星谱终端';
 
+// 终端身份指纹：首次运行生成并持久化（meta.terminal_id）。
+// 客户端可记住该指纹 —— 若域名被他人夺走、换成另一台服务器，指纹必然不同，客户端即可识别"这不是原来的终端"。
+function terminalId(db) {
+  const row = db.prepare("SELECT value FROM meta WHERE key = 'terminal_id'").get();
+  if (row?.value) return row.value;
+  const id = crypto.randomBytes(16).toString('hex');
+  db.prepare(
+    "INSERT INTO meta (key, value) VALUES ('terminal_id', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+  ).run(id);
+  return id;
+}
+function fingerprint(db) {
+  return crypto.createHash('sha256').update(terminalId(db)).digest('hex').slice(0, 32);
+}
+
 export function terminalRouter({ db, secret }) {
   const router = Router();
   const levelOf = (userId) =>
@@ -27,6 +42,7 @@ export function terminalRouter({ db, secret }) {
       name: TERMINAL_NAME,
       contentVersion: getContentVersion(db),
       hasAccessKey: Boolean(getKey()),
+      fingerprint: fingerprint(db),
     });
   });
 

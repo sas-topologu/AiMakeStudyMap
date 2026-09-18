@@ -1441,6 +1441,42 @@ code {
   opacity: 0.55;
 }
 
+/* ---- 全局风险提示（离线 / 终端身份变化） ---- */
+.risk-banner {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.risk-banner span {
+  flex: 1;
+  min-width: 200px;
+}
+
+.risk-banner.warn {
+  background: rgba(232, 184, 76, 0.18);
+  border-bottom: 1px solid rgba(232, 184, 76, 0.5);
+  color: #f0d79a;
+}
+
+.risk-banner.danger {
+  background: rgba(224, 95, 95, 0.2);
+  border-bottom: 1px solid rgba(224, 95, 95, 0.55);
+  color: #ffc9c9;
+}
+
+.risk-banner .btn {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
 /* ---- 空知识库引导 ---- */
 .empty-kb {
   max-width: 620px;

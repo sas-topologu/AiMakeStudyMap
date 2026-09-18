@@ -21,6 +21,7 @@ export const useStarmapStore = defineStore('starmap', {
     edges: [],
     loading: false,
     error: null,
+    offlineFallback: false, // 离线时用本地缓存兜底
     cache: emptyCache(),
     synced: false,
   }),
@@ -85,7 +86,7 @@ export const useStarmapStore = defineStore('starmap', {
       }
     },
 
-    // 以 id 为中心加载邻域（优先缓存）
+    // 以 id 为中心加载邻域（优先缓存；离线时用缓存兜底，保证没有终端也能用）
     async centerOn(id, { force = false } = {}) {
       this.loading = true;
       this.error = null;
@@ -95,17 +96,27 @@ export const useStarmapStore = defineStore('starmap', {
           this.nodes = hood.nodes;
           this.edges = hood.edges;
         } else {
-          const hood = await api.neighborhood(id, 2);
-          this.nodes = hood.nodes;
-          this.edges = hood.edges;
-          this.cache.hoods[id] = hood;
-          this._saveCache();
+          try {
+            const hood = await api.neighborhood(id, 2);
+            this.nodes = hood.nodes;
+            this.edges = hood.edges;
+            this.cache.hoods[id] = hood;
+            this._saveCache();
+          } catch (e) {
+            // 终端不可达（离线）：回退到本地缓存的任何邻域；仍无则保留现状，只提示不中断
+            const cached = this.cache.hoods[id] || Object.values(this.cache.hoods)[0];
+            if (cached) {
+              this.nodes = cached.nodes;
+              this.edges = cached.edges;
+              this.offlineFallback = true;
+            } else {
+              this.error = e;
+              return;
+            }
+          }
         }
         this.centerId = id;
         localStorage.setItem(RECENT_KEY, id);
-      } catch (e) {
-        this.error = e;
-        throw e;
       } finally {
         this.loading = false;
       }
@@ -118,12 +129,17 @@ export const useStarmapStore = defineStore('starmap', {
       if (this.centerId) await this.centerOn(this.centerId, { force: true });
     },
 
-    // 初始中心：最近学习节点，否则全量列表第一个
+    // 初始中心：最近学习节点，否则全量列表第一个（离线时退化为本地缓存的任一节点）
     async resolveInitialCenter() {
       const recent = this.recentId;
       if (recent) return recent;
-      const { nodes } = await api.graphAll();
-      return nodes[0]?.id ?? null;
+      try {
+        const { nodes } = await api.graphAll();
+        return nodes[0]?.id ?? null;
+      } catch {
+        const cached = Object.keys(this.cache.hoods)[0] || Object.keys(this.cache.cards)[0];
+        return cached || null;
+      }
     },
 
     // 详情页读取的卡片写入缓存（供离线/同步复用）

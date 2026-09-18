@@ -749,4 +749,23 @@ describe('API 集成', () => {
     const wrong = await agent.post('/api/auth/promote-admin').set(auth(sub)).send({ adminKey: 'nope-nope' });
     expect(wrong.status).toBe(403);
   });
+
+  it('风险防护：终端身份指纹稳定可校验 + 信息通道仅接受 JSON', async () => {
+    // 指纹存在且稳定（客户端据此识别"是不是同一个终端"，防域名被夺后替换）
+    const info1 = await agent.get('/api/terminal/info');
+    expect(info1.status).toBe(200);
+    expect(info1.body.fingerprint).toBeTruthy();
+    const info2 = await agent.get('/api/terminal/info');
+    expect(info2.body.fingerprint).toBe(info1.body.fingerprint);
+    // 含请求体但非 JSON → 415（限制信息通道，只允许 JSON）
+    const bad = await agent
+      .post('/api/auth/login')
+      .set('Content-Type', 'text/plain')
+      .send('username=x');
+    expect(bad.status).toBe(415);
+    expect(bad.body.error.code).toBe('UNSUPPORTED_MEDIA_TYPE');
+    // 正常 JSON 请求不受影响
+    const ok = await agent.post('/api/auth/login').send({ username: 'nobody', password: 'Nope12345' });
+    expect(ok.status).toBe(401);
+  });
 });

@@ -88,6 +88,20 @@ export function createApp(
     return next();
   });
 
+  // 信息通道限制：带请求体的接口只接受 JSON，其余格式（multipart/octet-stream 等）一律拒绝。
+  // 配合 assets 路由的图片白名单，确保通道内只流动"正常使用所需"的格式。
+  app.use('/api', (req, res, next) => {
+    if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
+      const ct = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+      if (ct && ct !== 'application/json') {
+        return res.status(415).json({
+          error: { code: 'UNSUPPORTED_MEDIA_TYPE', message: '仅支持 application/json' },
+        });
+      }
+    }
+    return next();
+  });
+
   const timerService = createTimerService(db);
   const quizService = createQuizService(db, timerService);
   const ctx = { db, secret, adminKey, timerService, quizService, assetsDir };

@@ -43,6 +43,84 @@ export function resetTerminal() {
   localStorage.removeItem(TERMINAL_CUR);
 }
 
+// ---- 离线熔断：终端不可达时进入离线态，在冷却期内"快速失败"而不再发起网络请求，
+//      避免反复申请导致空转、占用计算机资源。冷却结束后自动尝试恢复一次。----
+const OFFLINE_COOLDOWN_MS = 30000;
+let offlineUntil = 0;
+const offlineListeners = new Set();
+
+export function isOffline() {
+  return Date.now() < offlineUntil;
+}
+export function offlineRemainingSeconds() {
+  return Math.max(0, Math.ceil((offlineUntil - Date.now()) / 1000));
+}
+export function onOfflineChange(cb) {
+  offlineListeners.add(cb);
+  return () => offlineListeners.delete(cb);
+}
+function setOffline(ms) {
+  const was = isOffline();
+  offlineUntil = ms > 0 ? Date.now() + ms : 0;
+  if (was !== isOffline()) {
+    for (const cb of offlineListeners) {
+      try {
+        cb(isOffline());
+      } catch {
+        /* 忽略监听器异常 */
+      }
+    }
+  }
+}
+export function resetOffline() {
+  setOffline(0);
+}
+
+// ---- 终端身份指纹（防仿冒 / 防域名被夺后被替换）----
+// 首次连接某终端时记住其指纹（TOFU）；之后若指纹变化 → 说明"不是原来的终端"，应拦截并提示。
+const TERMINAL_FP_KEY = 'starmap:terminal.fp';
+function readFpMap() {
+  try {
+    const m = JSON.parse(localStorage.getItem(TERMINAL_FP_KEY) || '{}');
+    return m && typeof m === 'object' ? m : {};
+  } catch {
+    return {};
+  }
+}
+export function getKnownFingerprint(base) {
+  return readFpMap()[base] || '';
+}
+export function pinFingerprint(base, fp) {
+  const m = readFpMap();
+  m[base] = fp;
+  localStorage.setItem(TERMINAL_FP_KEY, JSON.stringify(m));
+}
+export function forgetFingerprint(base) {
+  const m = readFpMap();
+  delete m[base];
+  localStorage.setItem(TERMINAL_FP_KEY, JSON.stringify(m));
+}
+
+// 校验终端身份：返回 { ok, reason?, fingerprint?, expected? }
+export async function verifyTerminal(base = getTerminalBase()) {
+  try {
+    const res = await fetch(`${base}/api/terminal/info`, { cache: 'no-store' });
+    if (!res.ok) return { ok: false, reason: 'unreachable' };
+    const info = await res.json();
+    const fp = info?.fingerprint || '';
+    if (!fp) return { ok: true, unknown: true };
+    const known = getKnownFingerprint(base);
+    if (!known) {
+      pinFingerprint(base, fp);
+      return { ok: true, pinned: true, fingerprint: fp };
+    }
+    if (known !== fp) return { ok: false, reason: 'changed', expected: known, actual: fp };
+    return { ok: true, fingerprint: fp };
+  } catch {
+    return { ok: false, reason: 'unreachable' };
+  }
+}
+
 export class ApiError extends Error {
   constructor(code, message, status = 0) {
     super(message);
@@ -61,6 +139,10 @@ export function setUnauthorizedHandler(fn) {
 }
 
 async function request(path, { method = 'GET', body } = {}) {
+  // 离线熔断：冷却期内不发起网络请求（快速失败），避免反复申请占用资源
+  if (isOffline()) {
+    throw new ApiError('OFFLINE', `终端暂时不可用，已暂停请求（约 ${offlineRemainingSeconds()} 秒后自动恢复）`);
+  }
   const headers = {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const token = getToken();
@@ -74,8 +156,10 @@ async function request(path, { method = 'GET', body } = {}) {
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
-    throw new ApiError('NETWORK', '无法连接服务器，请检查网络或后端是否启动');
+    setOffline(OFFLINE_COOLDOWN_MS); // 进入离线态，暂停后续请求
+    throw new ApiError('NETWORK', '无法连接终端，已切换为离线（将使用本地缓存）');
   }
+  resetOffline(); // 有响应即视为可达
 
   let data = null;
   try {
