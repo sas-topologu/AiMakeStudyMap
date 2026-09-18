@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# 知识星图 · 部署/更新脚本（服务器上执行）
+# 智点星谱 · 部署/更新脚本（服务器上执行）
 # 从 GitHub 拉取最新代码 → 装依赖 → 构建前端 → 内容入库 → 重启服务
 set -euo pipefail
 
 APP_DIR="${1:-$(pwd)}"
 cd "$APP_DIR"
+
+# 丢弃服务器上由 npm install 产生的 lock 文件本地改动，避免 git pull 冲突
+# （package-lock.json 是生成物，以仓库中的版本为准）
+git checkout -- package-lock.json 2>/dev/null || true
 
 echo "== git pull =="
 git pull --ff-only
