@@ -7,6 +7,9 @@ web/dist/
 # 数据库与运行时数据（含用户数据，千万不要提交）
 server/data/
 
+# 用户上传的文件（评论图片/附件等，运行时生成）
+content/assets/uploads/
+
 # 备份
 backups/
 
