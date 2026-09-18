@@ -768,4 +768,44 @@ describe('API 集成', () => {
     const ok = await agent.post('/api/auth/login').send({ username: 'nobody', password: 'Nope12345' });
     expect(ok.status).toBe(401);
   });
+
+  it('上传与格式白名单：可配置、可校验、可访问；非管理员不可改', async () => {
+    const owner = await registerUser('up_owner');
+    // 默认格式（含图片）
+    const f1 = await agent.get('/api/terminal/formats');
+    expect(f1.body.formats).toContain('png');
+    // 不在白名单的格式 → 400
+    const bad = await agent
+      .post('/api/upload')
+      .set(auth(owner))
+      .send({ name: 'x.exe', data: Buffer.from('MZ').toString('base64') });
+    expect(bad.status).toBe(400);
+    // 白名单内 → 201，并可通过 /api/assets 访问
+    const png =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8AAAwAB/AF/9v3lAAAAAElFTkSuQmCC';
+    const ok = await agent.post('/api/upload').set(auth(owner)).send({ name: 'a.png', data: png });
+    expect(ok.status).toBe(201);
+    expect(ok.body.url).toMatch(/^\/api\/assets\/uploads\//);
+    const got = await agent.get(ok.body.url);
+    expect(got.status).toBe(200);
+    expect(String(got.headers['content-type'])).toContain('image/png');
+    // 非终端管理员不能改格式
+    const sub = await registerUser('up_user');
+    expect((await agent.post('/api/terminal/formats').set(auth(sub)).send({ formats: 'exe' })).status).toBe(403);
+    // 管理员放开 exe → 上传成功（格式可配置，不写死）
+    const set = await agent.post('/api/terminal/formats').set(auth(owner)).send({ formats: 'png,exe' });
+    expect(set.status).toBe(200);
+    expect(set.body.formats).toContain('exe');
+    const ok2 = await agent
+      .post('/api/upload')
+      .set(auth(owner))
+      .send({ name: 'b.exe', data: Buffer.from('MZ').toString('base64') });
+    expect(ok2.status).toBe(201);
+    // 清理上传产生的文件
+    const dir = path.join(ROOT, 'content/assets/uploads');
+    for (const u of [ok.body.url, ok2.body.url]) {
+      const f = path.join(dir, path.basename(u));
+      if (fs.existsSync(f)) fs.rmSync(f, { force: true });
+    }
+  });
 });

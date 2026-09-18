@@ -1441,6 +1441,27 @@ code {
   opacity: 0.55;
 }
 
+/* ---- 评论插入图片 / 富文本图片 ---- */
+.compose-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.hidden-file {
+  display: none;
+}
+
+.rich img,
+.post-body img {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 6px 0;
+  display: block;
+}
+
 /* ---- 全局风险提示（离线 / 终端身份变化） ---- */
 .risk-banner {
   position: sticky;

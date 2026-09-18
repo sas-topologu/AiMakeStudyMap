@@ -39,7 +39,11 @@
 
       <div v-if="composing" class="compose">
         <input v-model.trim="newTitle" class="input" maxlength="80" placeholder="标题（≤80 字）" />
-        <textarea v-model.trim="newBody" class="input" rows="4" maxlength="5000" placeholder="正文…" />
+        <textarea v-model.trim="newBody" class="input" rows="4" maxlength="5000" placeholder="正文…（支持 [[术语]]、**加粗**、图片）" />
+        <div class="compose-tools">
+          <button class="btn ghost" :disabled="busy" @click="pickFile('post')">🖼 插入图片</button>
+          <span class="muted small">支持：{{ formats.join(' / ') }}</span>
+        </div>
         <div class="dialog-actions">
           <button class="btn ghost" @click="composing = false">取消</button>
           <button class="btn primary" :disabled="!newTitle || !newBody || busy" @click="submitPost">
@@ -86,16 +90,22 @@
         <li v-for="r in post.replies" :key="r.id">
           <b>{{ r.author }}</b>
           <small class="muted">{{ formatTime(r.createdAt) }}</small>
-          <p>{{ r.body }}</p>
+          <RichText :text="r.body" class="post-body" />
         </li>
       </ul>
       <p v-if="!post.replies.length" class="muted small">还没有回复。</p>
       <div v-if="canPost" class="reply-form">
-        <textarea v-model.trim="replyBody" class="input" rows="2" maxlength="5000" placeholder="写下你的回复…" />
+        <textarea v-model.trim="replyBody" class="input" rows="2" maxlength="5000" placeholder="写下你的回复…（支持图片）" />
+        <div class="compose-tools">
+          <button class="btn ghost" :disabled="busy" @click="pickFile('reply')">🖼 插入图片</button>
+        </div>
         <button class="btn primary" :disabled="!replyBody || busy" @click="submitReply">回复</button>
       </div>
       <p v-else class="muted small">通关后可发言</p>
     </section>
+
+    <!-- 文件选择（发帖/回复共用） -->
+    <input ref="fileInput" type="file" class="hidden-file" @change="onFilePicked" />
   </div>
 </template>
 
@@ -125,6 +135,57 @@ const newBody = ref('');
 const replyBody = ref('');
 const monumentMsg = ref('');
 const busy = ref(false);
+const formats = ref([]);
+const fileInput = ref(null);
+const uploadTarget = ref('post'); // post | reply
+
+// 允许的文件格式（终端可配置）——用于提示与前置校验
+async function loadFormats() {
+  try {
+    const { formats: list } = await api.formatsGet();
+    formats.value = list || [];
+  } catch {
+    /* 离线时忽略 */
+  }
+}
+
+function pickFile(target) {
+  uploadTarget.value = target;
+  fileInput.value?.click();
+}
+
+async function onFilePicked(e) {
+  const f = e.target.files?.[0];
+  e.target.value = '';
+  if (!f) return;
+  const ext = (f.name.split('.').pop() || '').toLowerCase();
+  if (formats.value.length && !formats.value.includes(ext)) {
+    ui.toast(`不允许的文件格式 .${ext}（可在终端设置中放开）`, 'error');
+    return;
+  }
+  if (f.size > 5 * 1024 * 1024) {
+    ui.toast('文件过大（上限 5MB）', 'error');
+    return;
+  }
+  busy.value = true;
+  try {
+    const dataUrl = await new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result));
+      fr.onerror = () => reject(new Error('读取文件失败'));
+      fr.readAsDataURL(f);
+    });
+    const { url } = await api.uploadFile(f.name, dataUrl);
+    const md = `![${f.name}](${url})`;
+    if (uploadTarget.value === 'reply') replyBody.value = `${replyBody.value}\n${md}`.trim();
+    else newBody.value = `${newBody.value}\n${md}`.trim();
+    ui.toast('图片已插入', 'success');
+  } catch (err) {
+    onError(err);
+  } finally {
+    busy.value = false;
+  }
+}
 
 const canPost = computed(() => props.state === 'passed' || props.state === 'lit');
 const myPioneer = computed(() =>
@@ -222,4 +283,5 @@ watch(() => props.nodeId, () => {
   load();
 });
 load();
+loadFormats();
 </script>

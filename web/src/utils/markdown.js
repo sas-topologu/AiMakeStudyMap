@@ -32,11 +32,16 @@ export function renderMarkdown(src) {
   // 2) HTML 转义
   text = escapeHtml(text);
 
-  // 3) 行内语法
+  // 3) 行内语法（含图片：![](url)，仅允许 http(s) 或站内相对路径）
+  const safeUrl = (u) => (/^(https?:\/\/|\/)/i.test(u) ? u : '');
   const inline = (s) =>
     s
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/`([^`]+)`/g, '<code>$1</code>');
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (whole, alt, url) => {
+        const u = safeUrl(url);
+        return u ? `<img src="${u}" alt="${alt}" loading="lazy">` : whole;
+      });
 
   // 4) 块级：段落 / 列表
   const html = [];

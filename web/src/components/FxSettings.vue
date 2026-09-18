@@ -154,6 +154,13 @@
           </div>
           <small v-if="shownKey" class="muted">当前授权密钥：{{ shownKey }}</small>
           <small class="muted">把密钥发给他人：其登录后凭它成为二级管理员。</small>
+
+          <!-- 允许的文件格式（可配置，不写死） -->
+          <div class="fx-terminal">
+            <input v-model.trim="formatsInput" class="input" placeholder="允许的格式，逗号分隔（如 png,jpg,pdf）" />
+            <button class="btn ghost" @click="saveFormats">保存格式</button>
+          </div>
+          <small class="muted">当前允许：{{ formatsText }}</small>
         </template>
       </div>
 
@@ -190,7 +197,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useFxSettings } from '../composables/useFxSettings.js';
 import { useDevSettings, METEOR_GEARS, DEV_SLIDERS, MODULES } from '../composables/useDevSettings.js';
 import { useTerminal } from '../composables/useTerminal.js';
@@ -285,6 +292,32 @@ async function clearAccessKey() {
     ui.toast(e.message, 'error');
   }
 }
+
+// ---- 允许的文件格式（可配置） ----
+const formatsInput = ref('');
+const formatsList = ref([]);
+const formatsText = computed(() => formatsList.value.join(' / ') || '（默认）');
+
+async function loadFormats() {
+  try {
+    const { formats } = await api.formatsGet();
+    formatsList.value = formats || [];
+    formatsInput.value = (formats || []).join(',');
+  } catch {
+    /* 忽略 */
+  }
+}
+async function saveFormats() {
+  try {
+    const { formats } = await api.formatsSet(formatsInput.value);
+    formatsList.value = formats || [];
+    formatsInput.value = (formats || []).join(',');
+    ui.toast('文件格式已更新', 'success');
+  } catch (e) {
+    ui.toast(e.message, 'error');
+  }
+}
+loadFormats();
 
 function formatVal(s) {
   const v = dev.settings[s.key];

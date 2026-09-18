@@ -191,6 +191,10 @@ export const api = {
   terminalInfo: () => request('/terminal/info'),
   accessKeyGet: () => request('/terminal/access-key'),
   accessKeySet: (body) => request('/terminal/access-key', { method: 'POST', body }),
+  // 允许的文件格式（可配置）与上传
+  formatsGet: () => request('/terminal/formats'),
+  formatsSet: (formats) => request('/terminal/formats', { method: 'POST', body: { formats } }),
+  uploadFile: (name, data) => request('/upload', { method: 'POST', body: { name, data } }),
   // 星图
   neighborhood: (id, depth = 2) => request(`/graph/neighborhood/${encodeURIComponent(id)}?depth=${depth}`),
   graphAll: () => request('/graph/all'),
