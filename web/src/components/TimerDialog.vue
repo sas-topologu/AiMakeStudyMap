@@ -1,19 +1,22 @@
-// 设置倒计时对话框：输入分钟数（1~120），显示当日剩余额度
-// DAILY_LIMIT → 提示今日已达上限；成功后抛 started 事件
+// 设置倒计时对话框：输入分钟数（1~1440），显示当日剩余额度
+// 额度上限来自所在库的学习策略（可调、可关）；DAILY_LIMIT → 提示今日已达上限
 <template>
   <div v-if="visible" class="overlay" @click.self="$emit('close')">
     <div class="panel dialog">
       <h3>设置学习倒计时</h3>
       <p class="muted">
-        闯关需先开启倒计时（开启后不可取消）。今日剩余额度：
-        <b>{{ timer.dailyRemainingMinutes ?? '…' }} 分钟</b>（每日上限 120 分钟）
+        <template v-if="policy.timerEnabled">
+          闯关需先开启倒计时（开启后不可取消）。今日剩余额度：
+          <b>{{ timer.dailyRemainingMinutes ?? '…' }} 分钟</b>（每日上限 {{ policy.dailyLimitMinutes }} 分钟）
+        </template>
+        <template v-else> 本库已关闭计时约束：倒计时仅用于自我计时，不设上限、也不影响闯关。 </template>
       </p>
       <div class="dialog-row">
         <input
           v-model.number="minutes"
           type="number"
           min="1"
-          max="120"
+          :max="MAX_MINUTES"
           class="input minutes-input"
         />
         <span>分钟</span>
@@ -35,6 +38,7 @@
 <script setup>
 import { ref, watch } from 'vue';
 import { useTimerStore } from '../stores/timer.js';
+import { usePolicyStore } from '../stores/policy.js';
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -42,6 +46,8 @@ const props = defineProps({
 const emit = defineEmits(['close', 'started']);
 
 const timer = useTimerStore();
+const policy = usePolicyStore();
+const MAX_MINUTES = 1440;
 const minutes = ref(25);
 const starting = ref(false);
 const error = ref('');
@@ -59,8 +65,8 @@ watch(
 async function start() {
   error.value = '';
   const m = Math.floor(minutes.value);
-  if (!Number.isInteger(m) || m < 1 || m > 120) {
-    error.value = '请输入 1~120 之间的整数分钟';
+  if (!Number.isInteger(m) || m < 1 || m > MAX_MINUTES) {
+    error.value = `请输入 1~${MAX_MINUTES} 之间的整数分钟`;
     return;
   }
   starting.value = true;
@@ -69,7 +75,10 @@ async function start() {
     emit('started');
     emit('close');
   } catch (e) {
-    error.value = e.code === 'DAILY_LIMIT' ? '今日计时已达上限（120 分钟），明天再来吧' : e.message;
+    error.value =
+      e.code === 'DAILY_LIMIT'
+        ? `今日计时已达上限（${policy.dailyLimitMinutes} 分钟），明天再来吧`
+        : e.message;
   } finally {
     starting.value = false;
   }

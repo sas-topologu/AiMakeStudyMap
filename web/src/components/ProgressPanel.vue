@@ -9,15 +9,15 @@
           <span>当前倒计时</span>
           <b>{{ timer.active ? timer.remainingText : '无进行中' }}</b>
         </li>
-        <li>
+        <li v-if="policy.timerEnabled">
           <span>今日计时额度</span>
-          <b>剩余 {{ timer.dailyRemainingMinutes ?? '…' }} / 120 分钟</b>
+          <b>剩余 {{ timer.dailyRemainingMinutes ?? '…' }} / {{ policy.dailyLimitMinutes }} 分钟</b>
         </li>
         <li>
           <span>学习成果</span>
           <b>{{ progressText }}</b>
         </li>
-        <li>
+        <li v-if="policy.jumpQuotaEnabled">
           <span>跃迁额度</span>
           <b>{{ auth.quota === null ? '获取中…' : `${auth.quota} 点` }}（月赠 1 · 上限 2）</b>
         </li>
@@ -69,6 +69,7 @@ import { api } from '../api/client.js';
 import { useAuthStore } from '../stores/auth.js';
 import { useTimerStore } from '../stores/timer.js';
 import { useStarmapStore } from '../stores/starmap.js';
+import { usePolicyStore } from '../stores/policy.js';
 import { formatTime } from '../utils/format.js';
 
 const props = defineProps({
@@ -82,6 +83,7 @@ const CORR_STATUS = { pending: '待审核', approved: '已采纳', rejected: '�
 const auth = useAuthStore();
 const timer = useTimerStore();
 const starmap = useStarmapStore();
+const policy = usePolicyStore();
 
 const totals = ref(null); // { passed, lit }（全图统计，graph/all 带 state）
 const showCorrections = ref(false);

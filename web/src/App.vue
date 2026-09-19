@@ -24,6 +24,7 @@ import Fab from './components/Fab.vue';
 import Toast from './components/Toast.vue';
 import NavBanner from './components/NavBanner.vue';
 import TopBar from './components/TopBar.vue';
+import { usePolicyStore } from './stores/policy.js';
 import {
   isOffline,
   onOfflineChange,
@@ -87,6 +88,8 @@ onMounted(() => {
     offline.value = v;
   });
   if (!isLoginPage.value) checkIdentity();
+  // 学习策略（计时/跃迁额度开关）由所在的库提供，拉一次即可
+  usePolicyStore().load();
 });
 
 onBeforeUnmount(() => {

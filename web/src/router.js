@@ -5,8 +5,6 @@ import NodeView from './views/NodeView.vue';
 import MapView from './views/MapView.vue';
 import ShareView from './views/ShareView.vue';
 import PublicShareView from './views/PublicShareView.vue';
-import AdminView from './views/AdminView.vue';
-import ManageView from './views/ManageView.vue';
 import ChangelogView from './views/ChangelogView.vue';
 import { getToken } from './api/client.js';
 
@@ -22,8 +20,7 @@ export const router = createRouter({
     { path: '/share/:id', name: 'share-view', component: PublicShareView, meta: { public: true } }, // 公开只读
     { path: '/login', name: 'login', component: LoginView, meta: { public: true } },
     { path: '/share', name: 'share', component: ShareView }, // 创作页（需登录）
-    { path: '/admin', name: 'admin', component: AdminView, meta: { admin: true } },
-    { path: '/manage', name: 'manage', component: ManageView, meta: { admin: true } }, // 管理面板（抽查留档）
+    // 管理不在个人端界面里：审核/设置都在库管理界面 /admin（见 docs/概念模型.md §6）
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 });
@@ -32,7 +29,5 @@ router.beforeEach((to) => {
   const authed = Boolean(getToken());
   if (!to.meta.public && !authed) return { path: '/login', query: { redirect: to.fullPath } };
   if (to.path === '/login' && authed) return { path: '/' };
-  // 管理页：仅 is_admin（标记由 auth store 从 /api/auth/me 刷新）
-  if (to.meta.admin && localStorage.getItem('starmap.is_admin') !== '1') return { path: '/' };
   return true;
 });

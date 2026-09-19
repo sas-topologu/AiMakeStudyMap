@@ -1,9 +1,12 @@
 // 智点星谱 · 库管理界面（纯静态，无构建步骤）
-// 功能：登录、库概览、待处理任务（审核/驳回）、投稿/举报/勘误队列、授权密钥与文件格式（仅库管理员）
+// 管理属于库，不属于界面 —— 个人端不再自带管理页，统一到这里。
+// 功能：登录、库概览、待处理任务（通过/驳回）、投稿队列、举报、
+//       二创审核（通过/拒绝）、勘误处置（采纳/驳回 + 备注）、
+//       学习策略（计时/防沉迷、跃迁额度，可关）、授权密钥与允许文件格式（仅库管理员）
 const TOKEN_KEY = 'starmap.admin.token';
 const $ = (id) => document.getElementById(id);
 
-const state = { user: null, tasks: [], manage: null };
+const state = { user: null, tasks: [], manage: null, review: { creations: [], corrections: [] } };
 
 function toast(msg) {
   const el = $('toast');
@@ -35,6 +38,10 @@ async function req(path, { method = 'GET', body } = {}) {
   if (!res.ok) throw new Error(data?.error?.message || `请求失败（HTTP ${res.status}）`);
   return data;
 }
+
+const esc = (s) =>
+  String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const shortTime = (iso) => String(iso || '').replace('T', ' ').slice(0, 16);
 
 /* ---------------- 登录 / 身份 ---------------- */
 
@@ -89,13 +96,13 @@ function renderAuth() {
 async function refreshInfo() {
   const info = await req('/terminal/info');
   $('info').innerHTML = `
-    <div><b>库名称</b><span>${info.name}</span></div>
-    <div><b>知识库版本</b><span>v${info.contentVersion}</span></div>
-    <div><b>身份指纹</b><span>${info.fingerprint || '—'}</span></div>
+    <div><b>库名称</b><span>${esc(info.name)}</span></div>
+    <div><b>知识库版本</b><span>v${esc(info.contentVersion)}</span></div>
+    <div><b>身份指纹</b><span>${esc(info.fingerprint || '—')}</span></div>
     <div><b>授权密钥</b><span>${info.hasAccessKey ? '已设置' : '未设置'}</span></div>`;
 }
 
-/* ---------------- 队列 ---------------- */
+/* ---------------- 待处理任务 ---------------- */
 
 const TYPE_LABEL = {
   card_review: '投稿一审',
@@ -120,8 +127,8 @@ async function refreshTasks() {
         .map(
           (t) => `
       <div class="item">
-        <span class="tag">${TYPE_LABEL[t.type] || t.type}</span>
-        <span class="grow">对象：${t.subjectId || '—'} · ${String(t.createdAt).replace('T', ' ').slice(0, 16)}</span>
+        <span class="tag">${TYPE_LABEL[t.type] || esc(t.type)}</span>
+        <span class="grow">对象：${esc(t.subjectId || '—')} · ${shortTime(t.createdAt)}</span>
         <button class="btn ghost" data-ok="${t.id}">通过</button>
         <button class="btn danger" data-no="${t.id}">驳回</button>
       </div>`
@@ -130,6 +137,18 @@ async function refreshTasks() {
     : '<p class="muted small">暂无待处理任务（由管理 AI 自动处理；也可在此人工审核）</p>';
 }
 
+async function submitTask(id, verdict) {
+  try {
+    const r = await req(`/ai-tasks/${id}/result`, { method: 'POST', body: { verdict, model: 'admin-ui' } });
+    toast(`已处理：${r.status || verdict}`);
+    await refreshAll();
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+/* ---------------- 队列总览（投稿 / 举报） ---------------- */
+
 async function refreshManage() {
   const m = await req('/ai-tasks/manage');
   state.manage = m;
@@ -137,10 +156,10 @@ async function refreshManage() {
     ? m.submissions
         .map(
           (s) => `<div class="item">
-        <span class="grow">${s.node_id}</span>
+        <span class="grow">${esc(s.node_id)}</span>
         <span class="tag ${s.status === 'approved' ? 'ok' : s.status === 'ai_reviewed' ? 'warn' : s.status === 'rejected' ? 'bad' : ''}">
-          ${SUB_STATE[s.status] || s.status}</span>
-        <span class="muted small">${String(s.created_at).replace('T', ' ').slice(0, 16)}</span>
+          ${SUB_STATE[s.status] || esc(s.status)}</span>
+        <span class="muted small">${shortTime(s.created_at)}</span>
       </div>`
         )
         .join('')
@@ -151,30 +170,75 @@ async function refreshManage() {
         .map(
           (r) => `<div class="item">
         <span class="tag warn">举报</span>
-        <span class="grow">${r.target_type} / ${r.target_id}：${r.reason}</span>
-        <span class="muted small">${r.verdict || r.status}</span>
+        <span class="grow">${esc(r.target_type)} / ${esc(r.target_id)}：${esc(r.reason)}</span>
+        <span class="muted small">${esc(r.verdict || r.status)}</span>
       </div>`
         )
         .join('')
     : '<p class="muted small">暂无举报</p>';
+}
 
-  $('corrections').innerHTML = m.corrections.length
-    ? m.corrections
+/* ---------------- 二创审核 / 勘误处置 ---------------- */
+
+const CREATION_TYPE = { mindmap: '思维导图', game: '小游戏', summary: '总结图' };
+
+async function refreshReview() {
+  const q = await req('/admin/review-queue');
+  state.review = { creations: q.creations || [], corrections: q.corrections || [] };
+
+  $('creations').innerHTML = state.review.creations.length
+    ? state.review.creations
         .map(
-          (c) => `<div class="item">
-        <span class="tag">勘误</span>
-        <span class="grow">${c.node_title}：${c.body}</span>
+          (c) => `<div class="item col">
+        <div class="grow"><b>${esc(c.title)}</b>
+          <span class="tag">${esc(CREATION_TYPE[c.type] || c.type)}</span>
+          <span class="muted small">${esc(c.author)} · 节点 ${esc(c.nodeId)} · ${shortTime(c.createdAt)}</span>
+        </div>
+        <pre class="body">${esc(String(c.content || '').slice(0, 300))}</pre>
+        <div class="row">
+          <button class="btn ghost" data-creation-ok="${c.id}">通过</button>
+          <button class="btn danger" data-creation-no="${c.id}">拒绝</button>
+        </div>
       </div>`
         )
         .join('')
-    : '<p class="muted small">暂无待审勘误</p>';
+    : '<p class="muted small">暂无待审核二创</p>';
+
+  $('corrections').innerHTML = state.review.corrections.length
+    ? state.review.corrections
+        .map(
+          (c) => `<div class="item col">
+        <div class="grow"><b>${esc(c.nodeTitle)}</b>
+          <span class="muted small">${esc(c.author)} · 节点 ${esc(c.nodeId)} · ${shortTime(c.createdAt)}</span>
+        </div>
+        <pre class="body">${esc(c.body)}</pre>
+        <input class="input" data-note="${c.id}" maxlength="200" placeholder="审核备注（可选，将展示给提交者）" />
+        <div class="row">
+          <button class="btn ghost" data-correction-ok="${c.id}">采纳</button>
+          <button class="btn danger" data-correction-no="${c.id}">驳回</button>
+        </div>
+      </div>`
+        )
+        .join('')
+    : '<p class="muted small">暂无待处理勘误</p>';
 }
 
-async function submitTask(id, verdict) {
+async function reviewCreation(id, action) {
   try {
-    const r = await req(`/ai-tasks/${id}/result`, { method: 'POST', body: { verdict, model: 'admin-ui' } });
-    toast(`已处理：${r.status || verdict}`);
-    await refreshAll();
+    await req(`/admin/review/creations/${id}`, { method: 'POST', body: { action } });
+    toast(action === 'approve' ? '已通过' : '已拒绝');
+    await refreshReview();
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+async function reviewCorrection(id, action) {
+  const note = document.querySelector(`[data-note="${id}"]`)?.value?.trim() || undefined;
+  try {
+    await req(`/admin/review/corrections/${id}`, { method: 'POST', body: { action, note } });
+    toast(action === 'approve' ? '已采纳（待合并主库）' : '已驳回');
+    await refreshReview();
   } catch (e) {
     toast(e.message);
   }
@@ -189,6 +253,10 @@ async function refreshSettings() {
     $('accessKey').value = k.key || '';
     const f = await req('/terminal/formats');
     $('formats').value = (f.formats || []).join(',');
+    const { policy } = await req('/terminal/policy');
+    $('timerEnabled').checked = Boolean(policy.timerEnabled);
+    $('dailyLimit').value = policy.dailyLimitMinutes;
+    $('jumpQuotaEnabled').checked = Boolean(policy.jumpQuotaEnabled);
   } catch (e) {
     $('settingsMsg').textContent = e.message;
   }
@@ -204,12 +272,29 @@ async function keyAction(body) {
   }
 }
 
+async function savePolicy() {
+  try {
+    const { policy } = await req('/terminal/policy', {
+      method: 'POST',
+      body: {
+        timerEnabled: $('timerEnabled').checked,
+        jumpQuotaEnabled: $('jumpQuotaEnabled').checked,
+        dailyLimitMinutes: Number($('dailyLimit').value),
+      },
+    });
+    $('dailyLimit').value = policy.dailyLimitMinutes;
+    toast('学习策略已保存');
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
 /* ---------------- 汇总 ---------------- */
 
 async function refreshAll() {
   if (!state.user) return;
   try {
-    await Promise.all([refreshInfo(), refreshTasks(), refreshManage()]);
+    await Promise.all([refreshInfo(), refreshTasks(), refreshManage(), refreshReview()]);
     await refreshSettings();
   } catch (e) {
     toast(e.message);
@@ -228,6 +313,18 @@ function bind() {
     const no = e.target.dataset?.no;
     if (ok) submitTask(ok, 'approve');
     if (no) submitTask(no, 'reject');
+  });
+  $('creations').addEventListener('click', (e) => {
+    const ok = e.target.dataset?.creationOk;
+    const no = e.target.dataset?.creationNo;
+    if (ok) reviewCreation(ok, 'approve');
+    if (no) reviewCreation(no, 'reject');
+  });
+  $('corrections').addEventListener('click', (e) => {
+    const ok = e.target.dataset?.correctionOk;
+    const no = e.target.dataset?.correctionNo;
+    if (ok) reviewCorrection(ok, 'approve');
+    if (no) reviewCorrection(no, 'reject');
   });
   $('btnClaim').onclick = async () => {
     try {
@@ -252,6 +349,7 @@ function bind() {
       toast(e.message);
     }
   };
+  $('btnPolicySave').onclick = savePolicy;
 }
 
 (async function init() {

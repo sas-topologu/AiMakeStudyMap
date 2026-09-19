@@ -5,6 +5,7 @@ import { errors, parseBody } from '../errors.js';
 import { authRequired, authOptional, quotaRefresher } from '../middleware/auth.js';
 import { effectiveState, setState } from '../services/stateService.js';
 import { getQuota, consumeQuota } from '../services/quotaService.js';
+import { getPolicy } from '../services/policyService.js';
 
 const jumpSchema = z.object({ nodeId: z.string().min(1) });
 
@@ -45,6 +46,11 @@ export function jumpRouter({ db, secret }) {
     const state = effectiveState(db, userId, nodeId);
     if (state !== 'dim') {
       return res.json({ state, quota: getQuota(db, userId) });
+    }
+    // 策略关闭跃迁额度：直接开放，不扣额度、也不再有门槛
+    if (!getPolicy(db).jumpQuotaEnabled) {
+      setState(db, userId, nodeId, 'open');
+      return res.json({ state: 'open', quota: getQuota(db, userId), quotaDisabled: true });
     }
     if (getQuota(db, userId) <= 0) {
       throw errors.noQuota(`跃迁额度不足（当前 0，每月赠 1、上限 2）`);

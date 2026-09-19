@@ -195,6 +195,8 @@ export const api = {
   // 允许的文件格式（可配置）与上传
   formatsGet: () => request('/terminal/formats'),
   formatsSet: (formats) => request('/terminal/formats', { method: 'POST', body: { formats } }),
+  // 学习策略（计时/防沉迷、跃迁额度开关）：由库提供，个人端据此显示或隐藏入口
+  policyGet: () => request('/terminal/policy'),
   uploadFile: (name, data) => request('/upload', { method: 'POST', body: { name, data } }),
   // 星图
   neighborhood: (id, depth = 2) => request(`/graph/neighborhood/${encodeURIComponent(id)}?depth=${depth}`),
@@ -224,8 +226,6 @@ export const api = {
   agentSpec: () => request('/agent/spec'),
   agentCards: (cards) => request('/agent/cards', { method: 'POST', body: { cards } }),
   mySubmissions: () => request('/agent/submissions/mine'),
-  // 管理面板（管理员：抽查留档 + 队列）
-  manageOverview: () => request('/ai-tasks/manage'),
   // 社交：讨论区 / 纪念碑 / 速通榜
   monument: (id) => request(`/nodes/${encodeURIComponent(id)}/monument`),
   leaveMonument: (id, message) =>
@@ -240,10 +240,7 @@ export const api = {
   creations: (id) => request(`/nodes/${encodeURIComponent(id)}/creations`),
   uploadCreation: (id, type, title, content) =>
     request(`/nodes/${encodeURIComponent(id)}/creations`, { method: 'POST', body: { type, title, content } }),
-  // 管理端审核
-  reviewQueue: () => request('/admin/review-queue'),
-  reviewCreation: (id, action) =>
-    request(`/admin/review/creations/${id}`, { method: 'POST', body: { action } }),
+  // 管理端审核置于库管理界面 /admin（管理属于库，不属于个人端界面）
   // 星图分享
   shareCreate: (config) => request('/share', { method: 'POST', body: { config } }),
   shareGet: (id) => request(`/share/${encodeURIComponent(id)}`),
@@ -253,7 +250,5 @@ export const api = {
   submitCorrection: (nodeId, body) =>
     request(`/nodes/${encodeURIComponent(nodeId)}/corrections`, { method: 'POST', body: { body } }),
   myCorrections: () => request('/corrections/mine'),
-  reviewCorrection: (id, action, note) =>
-    request(`/admin/review/corrections/${id}`, { method: 'POST', body: { action, note } }),
   changelog: (limit = 20) => request(`/changelog?limit=${limit}`),
 };

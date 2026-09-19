@@ -134,6 +134,34 @@ main {
 .tag.ok { border-color: #4be1e1; color: #9fe9e9; }
 .tag.bad { border-color: var(--danger); color: #ffc9c9; }
 
+/* 二创 / 勘误：纵向卡片（正文 + 备注 + 操作） */
+.item.col { flex-direction: column; align-items: stretch; }
+.item.col .grow { min-width: 0; }
+.item.col pre.body {
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 220px;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font: 12px/1.6 ui-monospace, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+label.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+label.check input { width: 16px; height: 16px; }
+
+.card h2.sub { font-size: 13px; font-weight: 600; color: var(--muted); margin: 14px 0 8px; }
+
 .toast {
   position: fixed;
   left: 50%;

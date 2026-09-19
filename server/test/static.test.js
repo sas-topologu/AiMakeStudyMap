@@ -40,9 +40,9 @@ describe('静态托管与 SPA 回退', () => {
     const spa = await agent.get('/share/abc123');
     expect(spa.status).toBe(200);
     expect(spa.text).toContain('假 index.html');
-    const manage = await agent.get('/manage');
-    expect(manage.status).toBe(200);
-    expect(manage.text).toContain('假 index.html');
+    const spa2 = await agent.get('/changelog');
+    expect(spa2.status).toBe(200);
+    expect(spa2.text).toContain('假 index.html');
 
     // 带 hash 的静态资源 → immutable 长缓存 + 正确内容类型
     const asset = await agent.get('/assets/app-abc123.js');

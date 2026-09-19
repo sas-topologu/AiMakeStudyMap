@@ -87,7 +87,8 @@ export function createQuizService(db, timerService) {
       mode,
       questions: selected,
       createdAt: Date.now(),
-      timerEndsAt: practice ? Infinity : timer.endsAt,
+      // 关闭计时约束时 requireActiveTimer 返回 null → 不设交卷截止
+      timerEndsAt: practice || !timer ? Infinity : timer.endsAt,
     });
 
     return {

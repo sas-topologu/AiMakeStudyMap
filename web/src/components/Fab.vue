@@ -1,5 +1,5 @@
 // 悬浮功能按钮组（右下角）：功能按钮收拢进可折叠竖排图标按钮
-// 搜索/跃迁 · 大地图 · 我的进度 · 计时状态 · 退出登录；承载对应面板与对话框
+// 搜索/跃迁 · 大地图 · 我的进度 · 计时状态 · 库管理（管理员）· 退出登录；承载对应面板与对话框
 <template>
   <div class="fab" :class="{ open }">
     <transition-group name="fab" tag="div" class="fab-stack">
@@ -7,8 +7,7 @@
         <button key="search" class="fab-item" title="搜索 / 跃迁" @click="showSearch = true">🔍</button>
         <button key="map" class="fab-item" title="大地图（宏观视图）" @click="goMap">🌌</button>
         <button v-if="dev.enabled('share') && auth.isLoggedIn" key="share" class="fab-item" title="分享星图" @click="goShare">🔗</button>
-        <button v-if="auth.isAdmin" key="admin" class="fab-item" title="审核队列" @click="goAdmin">🛡</button>
-        <button v-if="auth.isAdmin" key="manage" class="fab-item" title="管理面板（抽查留档）" @click="goManage">🗂</button>
+        <button v-if="auth.isAdmin" key="admin" class="fab-item" title="库管理（审核 / 设置，在新标签打开）" @click="goAdmin">🛡</button>
         <button key="changelog" class="fab-item" title="关于 / 更新日志" @click="goChangelog">📜</button>
         <button v-if="auth.isLoggedIn" key="progress" class="fab-item" title="我的进度" @click="showProgress = true">📊</button>
         <button
@@ -21,7 +20,7 @@
         >
           🔥
         </button>
-        <button v-if="dev.enabled('timer') && auth.isLoggedIn" key="timer" class="fab-item" title="计时状态" @click="onTimer">
+        <button v-if="dev.enabled('timer') && policy.timerEnabled && auth.isLoggedIn" key="timer" class="fab-item" title="计时状态" @click="onTimer">
           ⏱
           <span v-if="timer.active" class="fab-badge">{{ timer.remainingText }}</span>
         </button>
@@ -48,6 +47,8 @@ import { useTimerStore } from '../stores/timer.js';
 import { useUiStore } from '../stores/ui.js';
 import { useNavStore } from '../stores/navigation.js';
 import { useDevSettings } from '../composables/useDevSettings.js';
+import { getTerminalBase } from '../api/client.js';
+import { usePolicyStore } from '../stores/policy.js';
 import SearchPanel from './SearchPanel.vue';
 import ProgressPanel from './ProgressPanel.vue';
 import TimerDialog from './TimerDialog.vue';
@@ -59,6 +60,7 @@ const ui = useUiStore();
 const nav = useNavStore();
 const router = useRouter();
 const dev = useDevSettings();
+const policy = usePolicyStore();
 
 const open = ref(false);
 const showSearch = ref(false);
@@ -78,12 +80,8 @@ function goShare() {
 
 function goAdmin() {
   open.value = false;
-  router.push('/admin');
-}
-
-function goManage() {
-  open.value = false;
-  router.push('/manage');
+  // 管理属于库：打开所在库的管理界面（跨数据源也成立），不打断当前页面
+  window.open(`${getTerminalBase()}/admin`, '_blank', 'noopener');
 }
 
 function goChangelog() {
@@ -103,7 +101,9 @@ async function toggleHot() {
 function onTimer() {
   if (timer.active) {
     ui.toast(
-      `倒计时进行中 ${timer.remainingText} · 今日剩余 ${timer.dailyRemainingMinutes ?? '…'} 分钟`,
+      policy.timerEnabled
+        ? `倒计时进行中 ${timer.remainingText} · 今日剩余 ${timer.dailyRemainingMinutes ?? '…'} 分钟`
+        : `倒计时进行中 ${timer.remainingText} · 本库未设上限`,
       'info',
       3200,
     );

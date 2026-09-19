@@ -18,7 +18,8 @@ export const useTimerStore = defineStore('timer', {
       const sec = t % 60;
       return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
     },
-    dailyRemainingMinutes: (s) => (s.daily ? Math.floor(s.daily.remainingSeconds / 60) : null),
+    dailyRemainingMinutes: (s) =>
+      s.daily && s.daily.remainingSeconds !== null ? Math.floor(s.daily.remainingSeconds / 60) : null,
   },
   actions: {
     _applyTimer(timer) {

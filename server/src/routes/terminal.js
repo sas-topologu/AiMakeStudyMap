@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { errors } from '../errors.js';
 import { authRequired } from '../middleware/auth.js';
 import { getContentVersion } from '../db/contentRepo.js';
+import { getPolicy, setPolicy } from '../services/policyService.js';
 
 const TERMINAL_NAME = '智点星谱库';
 
@@ -69,6 +70,24 @@ export function terminalRouter({ db, secret }) {
       throw errors.forbidden('仅库管理员可查看授权密钥');
     }
     res.json({ key: getKey() });
+  });
+
+  // 学习策略：公开读 —— 个人端据此显示或隐藏「计时 / 跃迁额度」入口
+  router.get('/terminal/policy', (req, res) => {
+    res.json({ policy: getPolicy(db) });
+  });
+
+  // 修改学习策略（仅 owner）：这些是「约束」，可以调、也可以整个关掉
+  router.post('/terminal/policy', authRequired(secret), (req, res) => {
+    if (levelOf(req.user.id) !== 1) {
+      throw errors.forbidden('仅库管理员可修改学习策略');
+    }
+    const body = req.body ?? {};
+    const patch = {};
+    if (typeof body.timerEnabled === 'boolean') patch.timerEnabled = body.timerEnabled;
+    if (typeof body.jumpQuotaEnabled === 'boolean') patch.jumpQuotaEnabled = body.jumpQuotaEnabled;
+    if (body.dailyLimitMinutes !== undefined) patch.dailyLimitMinutes = body.dailyLimitMinutes;
+    res.json({ policy: setPolicy(db, patch) });
   });
 
   return router;

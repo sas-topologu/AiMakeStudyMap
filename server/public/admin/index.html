@@ -43,14 +43,19 @@
       </section>
 
       <section class="panel card">
-        <h2>投稿队列</h2>
-        <div id="submissions" class="list"></div>
+        <h2>二创审核</h2>
+        <div id="creations" class="list"></div>
       </section>
 
       <section class="panel card">
-        <h2>举报 / 勘误</h2>
-        <div id="reports" class="list"></div>
+        <h2>勘误处置</h2>
         <div id="corrections" class="list"></div>
+      </section>
+
+      <section class="panel card">
+        <h2>举报 / 投稿队列</h2>
+        <div id="reports" class="list"></div>
+        <div id="submissions" class="list"></div>
       </section>
 
       <section class="panel card" id="settingsCard" hidden>
@@ -65,6 +70,14 @@
           <input id="formats" class="input" placeholder="允许的文件格式，逗号分隔" />
           <button id="btnFmtSave" class="btn ghost">保存格式</button>
         </div>
+        <h2 class="sub">学习策略（约束可以调，也可以关）</h2>
+        <div class="row">
+          <label class="check"><input id="timerEnabled" type="checkbox" /> 计时与防沉迷</label>
+          <input id="dailyLimit" class="input" type="number" min="5" max="1440" placeholder="当日上限（分钟）" />
+          <label class="check"><input id="jumpQuotaEnabled" type="checkbox" /> 跃迁额度</label>
+          <button id="btnPolicySave" class="btn ghost">保存策略</button>
+        </div>
+        <p class="muted small">取消勾选即关闭：个人端会隐藏对应入口，学习功能不因此减少。</p>
         <p id="settingsMsg" class="muted small"></p>
       </section>
     </main>
