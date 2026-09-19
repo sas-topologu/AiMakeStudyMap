@@ -22,6 +22,12 @@
           <b>{{ auth.quota === null ? '获取中…' : `${auth.quota} 点` }}（月赠 1 · 上限 2）</b>
         </li>
         <li>
+          <span>错题复盘</span>
+          <b v-if="review.due">到期 {{ review.due }} 题（共 {{ review.total }}）</b>
+          <b v-else-if="review.total">共 {{ review.total }} 题 · 今日无到期</b>
+          <b v-else>暂无错题</b>
+        </li>
+        <li>
           <span>最近学习节点</span>
           <b>{{ recentTitle }}</b>
         </li>
@@ -98,6 +104,7 @@ import {
   progressFileName,
 } from '../utils/progressFile.js';
 import { formatTime } from '../utils/format.js';
+import { reviewStats } from '../utils/reviewStore.js';
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -114,6 +121,7 @@ const policy = usePolicyStore();
 const localProgress = useLocalProgressStore();
 
 const totals = ref(null); // { passed, lit }（全图统计，graph/all 带 state）
+const review = ref(reviewStats()); // { total, due, nextDueAt }
 const showCorrections = ref(false);
 const corrections = ref(null); // null=未加载
 const fileEl = ref(null);
@@ -211,6 +219,7 @@ watch(
     if (!v) return;
     timer.refreshDaily();
     auth.refreshQuota();
+    review.value = reviewStats(); // 每次打开都重新算到期错题
     await refreshTotals();
   },
 );

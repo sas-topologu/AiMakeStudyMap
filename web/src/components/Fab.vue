@@ -10,6 +10,10 @@
         <button v-if="auth.isAdmin" key="admin" class="fab-item" title="库管理（审核 / 设置，在新标签打开）" @click="goAdmin">🛡</button>
         <button key="changelog" class="fab-item" title="关于 / 更新日志" @click="goChangelog">📜</button>
         <button v-if="auth.isLoggedIn" key="progress" class="fab-item" title="我的进度" @click="showProgress = true">📊</button>
+        <button key="review" class="fab-item" title="错题复盘（到期就该复习）" @click="openReview">
+          📕
+          <span v-if="dueCount" class="fab-badge">{{ dueCount }}</span>
+        </button>
         <button
           v-if="dev.enabled('navigation')"
           key="hot"
@@ -43,13 +47,14 @@
 
     <SearchPanel :visible="showSearch" @close="showSearch = false" />
     <ProgressPanel :visible="showProgress" @close="showProgress = false" />
+    <ReviewPanel :visible="showReview" @close="closeReview" />
     <TimerDialog :visible="showTimer" @close="showTimer = false" @started="onTimerStarted" />
     <FxSettings :visible="showFx" @close="showFx = false" />
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth.js';
 import { useTimerStore } from '../stores/timer.js';
@@ -59,8 +64,10 @@ import { useStarmapStore } from '../stores/starmap.js';
 import { useDevSettings } from '../composables/useDevSettings.js';
 import { getTerminalBase } from '../api/client.js';
 import { usePolicyStore } from '../stores/policy.js';
+import { reviewStats } from '../utils/reviewStore.js';
 import SearchPanel from './SearchPanel.vue';
 import ProgressPanel from './ProgressPanel.vue';
+import ReviewPanel from './ReviewPanel.vue';
 import TimerDialog from './TimerDialog.vue';
 import FxSettings from './FxSettings.vue';
 
@@ -76,8 +83,28 @@ const policy = usePolicyStore();
 const open = ref(false);
 const showSearch = ref(false);
 const showProgress = ref(false);
+const showReview = ref(false);
 const showTimer = ref(false);
 const showFx = ref(false);
+const dueCount = ref(0);
+
+// 到期错题数：按钮上挂角标；打开面板/收起时刷新
+function refreshDue() {
+  dueCount.value = reviewStats().due;
+}
+
+function openReview() {
+  open.value = false;
+  refreshDue();
+  showReview.value = true;
+}
+
+function closeReview() {
+  showReview.value = false;
+  refreshDue();
+}
+
+onMounted(refreshDue);
 
 function goMap() {
   open.value = false;

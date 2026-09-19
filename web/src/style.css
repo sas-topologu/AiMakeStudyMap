@@ -1711,6 +1711,21 @@ code {
 /* 隐藏的文件选择框（由按钮触发） */
 .hidden-file { display: none; }
 
+/* 错题复盘面板 */
+.review-stem { margin: 10px 0; line-height: 1.7; }
+.review-options { display: flex; flex-direction: column; gap: 6px; }
+.review-option {
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #24304d);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.review-option.picked { border-color: #7aa2ff; color: #cfe0ff; }
+.ok-text { color: #8fe3b4; }
+
 .post-main {
   flex: 1;
   display: flex;
