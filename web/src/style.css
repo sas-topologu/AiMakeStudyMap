@@ -1682,7 +1682,8 @@ code {
 }
 
 .badge-pioneer,
-.badge-rank {
+.badge-rank,
+.badge-certified {
   font-style: normal;
   font-size: 11px;
   border-radius: 4px;
@@ -1698,6 +1699,13 @@ code {
 .badge-rank {
   color: #4be1e1;
   border: 1px solid rgba(75, 225, 225, 0.5);
+}
+
+/* 「已认证」：只标好的、不标差的 —— 未认证的成果不显示任何标记 */
+.badge-certified {
+  color: #8fe3b4;
+  border: 1px solid rgba(143, 227, 180, 0.45);
+  margin-left: 6px;
 }
 
 .post-main {

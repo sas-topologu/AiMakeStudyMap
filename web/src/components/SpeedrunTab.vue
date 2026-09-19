@@ -1,4 +1,5 @@
 // 速通榜 Tab：点亮耗时排行（前三金银铜；当前登录用户行高亮；空榜虚位以待）
+// 只给「已认证」的成果加标记；未认证的照常上榜、不带任何标记（见 docs/概念模型.md §4）
 <template>
   <section class="panel">
     <h3>⚡ 速通榜</h3>
@@ -15,7 +16,10 @@
           :class="{ me: r.username === auth.user?.username }"
         >
           <td><span class="rank-medal" :class="`r${r.rank}`">{{ medal(r.rank) }}</span></td>
-          <td>{{ r.username }}</td>
+          <td>
+            {{ r.username }}
+            <em v-if="r.certified" class="badge-certified" title="该成果由本库当场见证">已认证</em>
+          </td>
           <td>{{ formatDuration(r.seconds) }}</td>
           <td class="muted">{{ formatTime(r.litAt) }}</td>
         </tr>

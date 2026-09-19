@@ -63,12 +63,15 @@ export function isPioneer(db, nodeId, userId) {
     .get(nodeId, userId);
 }
 
-// 纪念碑名单（含留言）
+// 纪念碑名单（含留言）；certified 来自该用户在本节点的成果是否有库见证
 export function listPioneers(db, nodeId) {
   return db
     .prepare(
-      `SELECT p.user_id, u.username, p.message, p.created_at
-       FROM pioneers p JOIN users u ON u.id = p.user_id
+      `SELECT p.user_id, u.username, p.message, p.created_at,
+              COALESCE(s.certified, 0) AS certified
+       FROM pioneers p
+       JOIN users u ON u.id = p.user_id
+       LEFT JOIN user_node_state s ON s.user_id = p.user_id AND s.node_id = p.node_id
        WHERE p.node_id = ? ORDER BY p.created_at`
     )
     .all(nodeId);

@@ -8,6 +8,7 @@
       <ul class="monument-list">
         <li v-for="p in pioneers" :key="p.username">
           <b>{{ p.username }}</b>
+          <em v-if="p.certified" class="badge-certified" title="该成果由本库当场见证">已认证</em>
           <span v-if="p.message" class="monument-msg">「{{ p.message }}」</span>
           <span v-else class="muted small">（尚未留言）</span>
           <small class="muted">{{ formatTime(p.createdAt) }}</small>

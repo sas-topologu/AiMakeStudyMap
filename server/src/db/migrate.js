@@ -299,6 +299,13 @@ const migrations = [
       UPDATE users SET admin_level = 1 WHERE is_admin = 1;
     `,
   },
+  {
+    version: 10,
+    name: '010_certified_achievements',
+    // 成果认证：由库当场见证（联网完成）的成果记 certified=1；离线完成、之后才上传的记 0。
+    // 只标「已认证」，不标「未认证」—— 未认证的照常展示、不降权、不隐藏（见 docs/概念模型.md §4）。
+    sql: `ALTER TABLE user_node_state ADD COLUMN certified INTEGER NOT NULL DEFAULT 1`,
+  },
 ];
 
 export function runMigrations(db) {

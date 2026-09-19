@@ -85,16 +85,19 @@ export function batchEffectiveStates(db, userId, nodeIds) {
 }
 
 // 写入显式状态（跃迁 open / 通关 passed / 点亮 lit）
-export function setState(db, userId, nodeId, state, { passSeconds = null, litAt = null } = {}) {
+// certified：该成果是否由库当场见证（联网完成）。默认 true —— 走接口就说明库在场。
+// 冲突时取 MAX（只补不撤）：事后核验通过可以把未认证补成已认证，但不会被降级。
+export function setState(db, userId, nodeId, state, { passSeconds = null, litAt = null, certified = true } = {}) {
   db.prepare(
-    `INSERT INTO user_node_state (user_id, node_id, state, pass_seconds, lit_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, datetime('now'))
+    `INSERT INTO user_node_state (user_id, node_id, state, pass_seconds, lit_at, certified, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
      ON CONFLICT(user_id, node_id) DO UPDATE SET
        state = excluded.state,
        pass_seconds = COALESCE(excluded.pass_seconds, user_node_state.pass_seconds),
        lit_at = COALESCE(excluded.lit_at, user_node_state.lit_at),
+       certified = MAX(user_node_state.certified, excluded.certified),
        updated_at = datetime('now')`
-  ).run(userId, nodeId, state, passSeconds, litAt);
+  ).run(userId, nodeId, state, passSeconds, litAt, certified ? 1 : 0);
 }
 
 // 闯关前置校验：dim 不可闯关（open/passed/lit 均可）

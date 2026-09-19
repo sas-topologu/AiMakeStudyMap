@@ -57,6 +57,7 @@ export function postsRouter({ db, secret }) {
       username: p.username,
       message: p.message,
       createdAt: p.created_at,
+      certified: p.certified === 1, // 只标「已认证」；未认证的照常展示、不带任何标记
     }));
     res.json({ pioneers });
   });
@@ -199,7 +200,7 @@ export function postsRouter({ db, secret }) {
     const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 50));
     const rows = db
       .prepare(
-        `SELECT u.username, s.pass_seconds, s.lit_at
+        `SELECT u.username, s.pass_seconds, s.lit_at, s.certified
          FROM user_node_state s JOIN users u ON u.id = s.user_id
          WHERE s.node_id = ? AND s.state = 'lit' AND s.pass_seconds IS NOT NULL
          ORDER BY s.pass_seconds ASC LIMIT ?`
@@ -211,6 +212,7 @@ export function postsRouter({ db, secret }) {
         username: r.username,
         seconds: r.pass_seconds,
         litAt: r.lit_at,
+        certified: r.certified === 1, // 只标「已认证」；未认证的照常上榜、不带任何标记
       })),
     });
   });
