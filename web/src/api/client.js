@@ -251,6 +251,9 @@ export const api = {
   shareGet: (id) => request(`/share/${encodeURIComponent(id)}`),
   // 个人数据导出（个人知识画像文档）
   profileExport: () => request('/profile/export'),
+  // 个人进度导出 / 导入（去中心化：数据可带走）
+  progressExport: () => request('/profile/progress'),
+  progressImport: (payload) => request('/profile/progress', { method: 'POST', body: payload }),
   // 勘误 / 更新日志
   submitCorrection: (nodeId, body) =>
     request(`/nodes/${encodeURIComponent(nodeId)}/corrections`, { method: 'POST', body: { body } }),

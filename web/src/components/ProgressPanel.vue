@@ -56,6 +56,27 @@
           </li>
         </ul>
       </div>
+      <!-- 数据带走：个人进度导出 / 导入 -->
+      <h4 class="progress-sub">数据带走（导出 / 导入）</h4>
+      <p class="muted small">
+        进度只存在当前数据源里；导出成一个文件，换设备或换库时能带过去。
+        导入时<b>只升不降</b>：不会覆盖更高的进度；认证只在导回同一个库时保留。
+      </p>
+      <p v-if="dataMsg" class="muted small">{{ dataMsg }}</p>
+      <div class="dialog-actions left">
+        <button class="btn ghost" :disabled="busyData" @click="exportProgress">
+          {{ busyData ? '处理中…' : '导出进度文件' }}
+        </button>
+        <button class="btn ghost" :disabled="busyData" @click="pickFile">导入进度文件</button>
+        <input
+          ref="fileEl"
+          type="file"
+          accept="application/json,.json"
+          class="hidden-file"
+          @change="importProgress"
+        />
+      </div>
+
       <div class="dialog-actions">
         <button class="btn ghost" @click="$emit('close')">关闭</button>
       </div>
@@ -70,6 +91,12 @@ import { useAuthStore } from '../stores/auth.js';
 import { useTimerStore } from '../stores/timer.js';
 import { useStarmapStore } from '../stores/starmap.js';
 import { usePolicyStore } from '../stores/policy.js';
+import { useLocalProgressStore } from '../stores/localProgress.js';
+import {
+  buildProgressFile,
+  parseProgressFile,
+  progressFileName,
+} from '../utils/progressFile.js';
 import { formatTime } from '../utils/format.js';
 
 const props = defineProps({
@@ -84,10 +111,76 @@ const auth = useAuthStore();
 const timer = useTimerStore();
 const starmap = useStarmapStore();
 const policy = usePolicyStore();
+const localProgress = useLocalProgressStore();
 
 const totals = ref(null); // { passed, lit }（全图统计，graph/all 带 state）
 const showCorrections = ref(false);
 const corrections = ref(null); // null=未加载
+const fileEl = ref(null);
+const busyData = ref(false);
+const dataMsg = ref('');
+
+// ---- 数据带走：导出 / 导入 ----
+function download(name, text) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function exportProgress() {
+  busyData.value = true;
+  dataMsg.value = '';
+  try {
+    // 库侧进度 + 本地离线成果，合成一份可带走的文件
+    const server = await api.progressExport();
+    const local = Object.entries(localProgress.items).map(([nodeId, v]) => ({
+      nodeId,
+      state: v.state,
+      passSeconds: v.passSeconds,
+    }));
+    const file = buildProgressFile({ source: server.source, states: server.states, local });
+    download(progressFileName(file.exportedAt), JSON.stringify(file, null, 2));
+    dataMsg.value = `已导出 ${file.states.length} 个节点的进度（本地未上报的 ${local.length} 条也一并带上）`;
+  } catch (e) {
+    dataMsg.value = `导出失败：${e.message}`;
+  } finally {
+    busyData.value = false;
+  }
+}
+
+function pickFile() {
+  dataMsg.value = '';
+  fileEl.value?.click();
+}
+
+async function importProgress(event) {
+  const input = event.target;
+  const f = input.files?.[0];
+  input.value = ''; // 允许重复选同一个文件
+  if (!f) return;
+  busyData.value = true;
+  dataMsg.value = '';
+  try {
+    const parsed = parseProgressFile(await f.text());
+    if (!parsed.ok) {
+      dataMsg.value = `导入失败：${parsed.error}`;
+      return;
+    }
+    const r = await api.progressImport({ source: parsed.data.source, states: parsed.data.states });
+    const extra = r.ignored?.length ? `，${r.ignored.length} 个节点本库没有（已忽略）` : '';
+    const cert = r.sameLibrary ? '' : '；跨库导入：认证不保留（本库没见证过）';
+    dataMsg.value = `导入完成：新增 ${r.imported} 条，跳过 ${r.skipped} 条${extra}${cert}`;
+    await starmap.refreshStates().catch(() => {});
+    await refreshTotals();
+  } catch (e) {
+    dataMsg.value = `导入失败：${e.message}`;
+  } finally {
+    busyData.value = false;
+  }
+}
 
 async function toggleCorrections() {
   showCorrections.value = !showCorrections.value;
@@ -118,15 +211,19 @@ watch(
     if (!v) return;
     timer.refreshDaily();
     auth.refreshQuota();
-    try {
-      const { nodes } = await api.graphAll();
-      totals.value = {
-        passed: nodes.filter((n) => n.state === 'passed').length,
-        lit: nodes.filter((n) => n.state === 'lit').length,
-      };
-    } catch {
-      totals.value = null;
-    }
+    await refreshTotals();
   },
 );
+
+async function refreshTotals() {
+  try {
+    const { nodes } = await api.graphAll();
+    totals.value = {
+      passed: nodes.filter((n) => n.state === 'passed').length,
+      lit: nodes.filter((n) => n.state === 'lit').length,
+    };
+  } catch {
+    totals.value = null;
+  }
+}
 </script>

@@ -4,11 +4,32 @@
 // 公开发布内容（讨论帖/回复/纪念碑/二创/勘误）、分享记录。
 // 说明：刷题试卷存内存不持久化，无法导出；search_logs 无 user_id（全局空洞信号），不归属个人。
 import { Router } from 'express';
+import { z } from 'zod';
 import { authRequired } from '../middleware/auth.js';
+import { errors, parseBody } from '../errors.js';
+import { STATE_LEVEL, effectiveState, setState } from '../services/stateService.js';
+import { fingerprint } from './terminal.js';
 
 function nowIso() {
   return new Date().toISOString();
 }
+
+// 个人进度：导出 / 导入（去中心化 —— 数据要能带走）
+const progressImportSchema = z.object({
+  source: z.object({ name: z.string().optional(), fingerprint: z.string().optional() }).partial().optional(),
+  states: z
+    .array(
+      z.object({
+        nodeId: z.string().min(1),
+        state: z.enum(['open', 'passed', 'lit']),
+        passSeconds: z.number().int().min(0).max(86400).nullish(),
+        litAt: z.string().nullish(),
+        certified: z.boolean().optional(),
+      })
+    )
+    .max(5000)
+    .default([]),
+});
 
 export function profileRouter({ db, secret }) {
   const router = Router();
@@ -128,6 +149,67 @@ export function profileRouter({ db, secret }) {
       corrections,
       shares,
     });
+  });
+
+  // ---- 个人进度：导出（去中心化：数据要能带走）----
+  // 只导出「学习进度」本身（节点状态 / 通关用时 / 点亮时间 / 认证与否）+ 来源库指纹。
+  // 社区内容（帖子、二创、勘误等）不在这里 —— 它们属于社区，不属于可搬走的个人进度。
+  router.get('/profile/progress', authRequired(secret), (req, res) => {
+    const rows = db
+      .prepare(
+        `SELECT node_id, state, pass_seconds, lit_at, certified
+         FROM user_node_state WHERE user_id = ? ORDER BY node_id`
+      )
+      .all(req.user.id);
+    res.json({
+      kind: 'starmap-progress',
+      version: 1,
+      exportedAt: nowIso(),
+      source: { name: '智点星谱库', fingerprint: fingerprint(db) },
+      states: rows.map((r) => ({
+        nodeId: r.node_id,
+        state: r.state,
+        passSeconds: r.pass_seconds,
+        litAt: r.lit_at,
+        certified: r.certified === 1,
+      })),
+    });
+  });
+
+  // ---- 个人进度：导入 ----
+  // 规则：只升不降；库里没有的节点跳过（返回 ignored）；
+  // 认证只在**导回同一个库**（指纹相同）时保留 —— 认证的含义是"这个库当场见证过"，
+  // 换一个库导入，新库并没有见证过，所以只能记未认证。
+  router.post('/profile/progress', authRequired(secret), (req, res) => {
+    const { source, states } = parseBody(progressImportSchema, req.body ?? {});
+    const uid = req.user.id;
+    const myFingerprint = fingerprint(db);
+    const sameLibrary = Boolean(source?.fingerprint) && source.fingerprint === myFingerprint;
+    const nodeExists = db.prepare('SELECT 1 FROM nodes WHERE id = ?');
+
+    let imported = 0;
+    let skipped = 0;
+    const ignored = [];
+    for (const s of states) {
+      if (!nodeExists.get(s.nodeId)) {
+        skipped += 1;
+        ignored.push(s.nodeId);
+        continue;
+      }
+      const current = effectiveState(db, uid, s.nodeId);
+      if (STATE_LEVEL[s.state] <= STATE_LEVEL[current]) {
+        skipped += 1; // 已有同级或更高：不动
+        continue;
+      }
+      setState(db, uid, s.nodeId, s.state, {
+        passSeconds: s.passSeconds ?? null,
+        litAt: s.litAt ?? null,
+        certified: sameLibrary && s.certified === true,
+      });
+      imported += 1;
+    }
+
+    res.json({ imported, skipped, ignored, sameLibrary, fingerprint: myFingerprint });
   });
 
   return router;

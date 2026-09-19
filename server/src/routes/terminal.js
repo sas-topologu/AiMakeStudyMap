@@ -12,7 +12,7 @@ const TERMINAL_NAME = '智点星谱库';
 
 // 数据源身份指纹：首次运行生成并持久化（meta.terminal_id）。
 // 个人端可记住该指纹 —— 若域名被他人夺走、换成另一台服务器，指纹必然不同，个人端即可识别"这不是原来的库"。
-function terminalId(db) {
+export function terminalId(db) {
   const row = db.prepare("SELECT value FROM meta WHERE key = 'terminal_id'").get();
   if (row?.value) return row.value;
   const id = crypto.randomBytes(16).toString('hex');
@@ -21,7 +21,7 @@ function terminalId(db) {
   ).run(id);
   return id;
 }
-function fingerprint(db) {
+export function fingerprint(db) {
   return crypto.createHash('sha256').update(terminalId(db)).digest('hex').slice(0, 32);
 }
 
