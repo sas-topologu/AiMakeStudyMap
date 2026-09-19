@@ -1,5 +1,8 @@
 # 自动构建「手机客户端 APK」（GitHub 云端构建，无需你本地装 Android SDK）
 # 触发方式：仓库页面 → Actions → 选 “Build Android APK” → Run workflow → 跑完在该次运行里下载 APK
+#
+# 说明：不用 android-actions/setup-android（它默认要装已被移除的 "tools" 包会失败），
+#       直接使用 GitHub 运行器预装的 Android SDK，并补装 Capacitor 8 需要的 API 36。
 name: Build Android APK
 
 on:
@@ -13,10 +16,6 @@ on:
 jobs:
   apk:
     runs-on: ubuntu-latest
-    env:
-      # Capacitor 8 需要 Android SDK Platform 36
-      ANDROID_PLATFORM: '36'
-      BUILD_TOOLS: '36.0.0'
     steps:
       - uses: actions/checkout@v4
 
@@ -29,16 +28,20 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - uses: android-actions/setup-android@v3
-
-      - name: 安装 Android SDK 组件（API 36）并接受许可
+      - name: 准备 Android SDK（补装 API 36 并接受许可）
         run: |
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "platform-tools" "platforms;android-${ANDROID_PLATFORM}" "build-tools;${BUILD_TOOLS}"
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SM" ] || SM="$(command -v sdkmanager || true)"
+          [ -x "$SM" ] || SM="$(find "$SDK" -name sdkmanager -type f 2>/dev/null | sort | tail -1)"
+          echo "SDK 目录：$SDK"
+          echo "sdkmanager：$SM"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          yes | "$SM" --licenses > /dev/null 2>&1 || true
+          "$SM" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
           echo "=== 已安装组件 ==="
-          sdkmanager --list_installed || true
-          echo "=== 环境 ==="
-          node -v && java -version 2>&1 | head -1
+          "$SM" --list_installed || true
 
       - name: 安装依赖（跳过 Electron 大文件下载）
         env:
@@ -63,8 +66,9 @@ jobs:
           npx cap add android
           npx cap sync android
 
-      - name: 构建 APK
+      - name: 指定 SDK 路径并构建 APK
         run: |
+          echo "sdk.dir=$ANDROID_HOME" > mobile/android/local.properties
           cd mobile/android
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
