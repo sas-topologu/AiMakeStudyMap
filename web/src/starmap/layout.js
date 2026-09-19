@@ -201,7 +201,7 @@ export function computeLayout({ centerId, nodes, edges, ringStep = 160, nav = nu
     }
   }
 
-  // 边附加渲染类别：successor（琥珀）/ prerequisite（蓝）/ related（不再连线，仅导航高亮时叠加）
+  // 边附加渲染类别：successor（琥珀）/ prerequisite（蓝）/ related（默认折叠不连线；展开次级网络时画紫色虚线）
   const styledEdges = [];
   for (const e of edges) {
     if (!pos.has(e.from) || !pos.has(e.to)) continue;

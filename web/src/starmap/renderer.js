@@ -37,6 +37,8 @@ export class StarMapRenderer extends CanvasStage {
     this.centerId = null;
     this.hoverId = null;
     this.edgeMode = 'skilltree'; // 连线风格（见 EDGE_MODES）
+    // 次级网络（相关关系）：默认折叠 —— 相关节点只画流星；展开后改用相关连线（紫色虚线）
+    this.showRelated = false;
     // 叠加层：导航路线（金色发光）与热门路径（青色），跨 setData 保持
     this.highlight = { nodes: new Set(), edges: new Set() };
     this.hotEdges = new Set();
@@ -80,6 +82,14 @@ export class StarMapRenderer extends CanvasStage {
     this.hotEdges = new Set(list.map((e) => [e.from, e.to].sort().join('|')));
   }
 
+  // 次级网络（相关关系）：默认折叠（相关节点画流星），展开后改用相关连线
+  setRelatedVisible(v) {
+    const next = Boolean(v);
+    if (next === this.showRelated) return;
+    this.showRelated = next;
+    this._rebuildMeteors(); // 折/展切换会改变"哪些节点有连线"，流星表要跟着重建
+  }
+
   setData({ layout, nodesById, centerId }) {
     this.layout = layout;
     this.nodesById = nodesById;
@@ -99,10 +109,10 @@ export class StarMapRenderer extends CanvasStage {
   _rebuildMeteors() {
     this.meteors.clear();
     this.meteorTime = 0;
-    // 有连线的节点集合（related 边不连线，不算）
+    // 有连线的节点集合（相关边默认不连线，不算；展开次级网络后要算）
     const hasLine = new Set();
     for (const e of this.layout?.edges ?? []) {
-      if (e.kind === 'related') continue;
+      if (e.kind === 'related' && !this.showRelated) continue;
       hasLine.add(e.from);
       hasLine.add(e.to);
     }
@@ -199,10 +209,10 @@ export class StarMapRenderer extends CanvasStage {
     this.beginWorld();
     this._drawGuides();
     if (this.particles) this._drawParticles(); // 粒子层：世界空间、连线之下（不遮挡图结构）
-    // 动画期间：边取新旧并集（离开节点的边随之淡出）；相关节点不再连线（仅前置/后续主干连线）
+    // 动画期间：边取新旧并集（离开节点的边随之淡出）；相关连线默认折叠，展开后照画
     const activeEdges = this.animEdges ?? this.layout.edges;
     for (const e of activeEdges) {
-      if (e.kind === 'related') continue;
+      if (e.kind === 'related' && !this.showRelated) continue;
       this._drawEdge(e);
     }
     this._drawEdgeOverlay(this.hotEdges, '#4be1e1', 2.6); // 热门路径：青色

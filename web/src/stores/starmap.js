@@ -10,6 +10,7 @@ import { useLocalProgressStore } from './localProgress.js';
 
 const CACHE_KEY = 'starmap.cache.v2'; // v2：连线深度 3→2，旧 depth=3 邻域缓存作废
 const RECENT_KEY = 'starmap.recent';
+const RELATED_KEY = 'starmap:relatedVisible'; // 次级网络（相关连线）是否展开
 
 function emptyCache() {
   return { contentVersion: 0, userId: null, cards: {}, hoods: {} };
@@ -23,6 +24,7 @@ export const useStarmapStore = defineStore('starmap', {
     loading: false,
     error: null,
     offlineFallback: false, // 离线时用本地缓存兜底
+    relatedVisible: localStorage.getItem(RELATED_KEY) === '1', // 次级网络（相关连线）是否展开
     cache: emptyCache(),
     synced: false,
   }),
@@ -130,6 +132,13 @@ export const useStarmapStore = defineStore('starmap', {
         const merged = local.merge(n.id, n.state);
         return merged === n.state ? n : { ...n, state: merged };
       });
+    },
+
+    // 次级网络（相关关系）默认折叠：相关节点只画流星；展开后画相关连线
+    toggleRelated() {
+      this.relatedVisible = !this.relatedVisible;
+      localStorage.setItem(RELATED_KEY, this.relatedVisible ? '1' : '0');
+      return this.relatedVisible;
     },
 
     // 缓存里的节点状态：离线时用来还原真实进度（不能退化成 dim）

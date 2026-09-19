@@ -519,6 +519,7 @@ function onWheel(e) {
 onMounted(() => {
   renderer = new StarMapRenderer(cv.value);
   renderer.setEdgeMode(props.edgeMode);
+  renderer.setRelatedVisible(starmap.relatedVisible); // 次级网络默认折叠
   ro = new ResizeObserver(resize);
   ro.observe(wrap.value);
   resize();
@@ -563,6 +564,16 @@ watch(
     renderer.setEdgeMode(m);
     renderer.render();
     syncPulseLoop();
+  },
+);
+
+// 次级网络（相关连线）折/展：切换后重建流星表并重绘
+watch(
+  () => starmap.relatedVisible,
+  (v) => {
+    if (!renderer) return;
+    renderer.setRelatedVisible(v);
+    renderer.render();
   },
 );
 

@@ -20,6 +20,15 @@
         >
           🔥
         </button>
+        <button
+          key="related"
+          class="fab-item"
+          :class="{ 'hot-active': starmap.relatedVisible }"
+          :title="starmap.relatedVisible ? '次级网络：已展开（相关连线）' : '次级网络：已折叠（相关节点只画流星）'"
+          @click="toggleRelated"
+        >
+          🕸
+        </button>
         <button v-if="dev.enabled('timer') && policy.timerEnabled && auth.isLoggedIn" key="timer" class="fab-item" title="计时状态" @click="onTimer">
           ⏱
           <span v-if="timer.active" class="fab-badge">{{ timer.remainingText }}</span>
@@ -46,6 +55,7 @@ import { useAuthStore } from '../stores/auth.js';
 import { useTimerStore } from '../stores/timer.js';
 import { useUiStore } from '../stores/ui.js';
 import { useNavStore } from '../stores/navigation.js';
+import { useStarmapStore } from '../stores/starmap.js';
 import { useDevSettings } from '../composables/useDevSettings.js';
 import { getTerminalBase } from '../api/client.js';
 import { usePolicyStore } from '../stores/policy.js';
@@ -58,6 +68,7 @@ const auth = useAuthStore();
 const timer = useTimerStore();
 const ui = useUiStore();
 const nav = useNavStore();
+const starmap = useStarmapStore();
 const router = useRouter();
 const dev = useDevSettings();
 const policy = usePolicyStore();
@@ -96,6 +107,12 @@ async function toggleHot() {
   } catch (e) {
     ui.toast(e.message, 'error');
   }
+}
+
+// 次级网络（相关关系）：默认折叠，展开后画相关连线（紫色虚线）
+function toggleRelated() {
+  const on = starmap.toggleRelated();
+  ui.toast(on ? '次级网络已展开：相关节点之间连上线' : '次级网络已折叠：相关节点只画流星');
 }
 
 function onTimer() {
