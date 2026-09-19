@@ -6,11 +6,12 @@ import request from 'supertest';
 import { runImport } from '../../content/tools/import.js';
 import { openDatabase } from '../src/db/connection.js';
 import { createApp } from '../src/app.js';
-import { setState } from '../src/services/stateService.js';
+import { setState, effectiveState } from '../src/services/stateService.js';
+import { litCount } from '../src/services/pioneerService.js';
 
 // 成果认证（docs/概念模型.md §4）：
 // - 只标「已认证」：由库当场见证（走接口）的成果 certified=1
-// - 未认证的照常展示、照常上榜、不降权、不隐藏，也不带任何负面标记
+// - **榜单类只接受已认证**（速通榜、拓荒者名额）；未认证的成果本身照常存在 —— 进度照算、照样解锁后续节点
 // - 只补不撤：事后核验可以把未认证补成已认证，反之不会降级
 function makeCard(id, { prerequisites = [] } = {}) {
   return {
@@ -46,7 +47,7 @@ function makeCard(id, { prerequisites = [] } = {}) {
   };
 }
 
-describe('成果认证（只标已认证）', () => {
+describe('成果认证（只标已认证；榜单只收已认证）', () => {
   let tmp, db, agent;
   const now = () => new Date().toISOString();
 
@@ -80,35 +81,36 @@ describe('成果认证（只标已认证）', () => {
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
-  it('走接口写下的成果 = 已认证；上传来的 = 未认证（两者都照常上榜）', async () => {
+  it('速通榜只收已认证：未认证的不上榜，但成果本身照常生效', async () => {
     await registerUser('在线甲');
     await registerUser('离线乙');
+    const uidOnline = userId('在线甲');
+    const uidOffline = userId('离线乙');
 
-    // 在线甲：库当场见证
-    setState(db, userId('在线甲'), 't.a', 'lit', { passSeconds: 100, litAt: now() });
-    // 离线乙：本地完成、之后才上传（模拟）
-    setState(db, userId('离线乙'), 't.a', 'lit', { passSeconds: 200, litAt: now(), certified: false });
+    setState(db, uidOnline, 't.a', 'lit', { passSeconds: 100, litAt: now() }); // 库当场见证
+    setState(db, uidOffline, 't.a', 'lit', { passSeconds: 200, litAt: now(), certified: false }); // 事后上传
 
     expect(certifiedOf('在线甲', 't.a')).toBe(1);
     expect(certifiedOf('离线乙', 't.a')).toBe(0);
 
     const res = await agent.get('/api/nodes/t.a/speedrun');
     expect(res.status).toBe(200);
-    expect(res.body.ranks).toHaveLength(2); // 未认证的没有被打下去
-    const [first, second] = res.body.ranks;
-    expect(first.username).toBe('在线甲');
-    expect(first.certified).toBe(true);
-    expect(second.username).toBe('离线乙');
-    expect(second.certified).toBe(false);
-    // 只暴露 certified 一个布尔，没有任何「可信度分级」字段
-    expect(Object.keys(second).sort()).toEqual(['certified', 'litAt', 'rank', 'seconds', 'username']);
+    expect(res.body.ranks).toHaveLength(1); // 榜单只收已认证
+    expect(res.body.ranks[0]).toMatchObject({ username: '在线甲', certified: true });
+
+    // 但未认证的成果没有被抹掉：状态照算，后续节点照样解锁
+    expect(effectiveState(db, uidOffline, 't.a')).toBe('lit');
+    expect(effectiveState(db, uidOffline, 't.b')).toBe('open');
   });
 
-  it('纪念碑同样只标已认证', async () => {
+  it('拓荒者名额也只算已认证的点亮；纪念碑只列已认证', async () => {
     await registerUser('在线甲');
     await registerUser('离线乙');
     setState(db, userId('在线甲'), 't.a', 'lit', { passSeconds: 100, litAt: now() });
     setState(db, userId('离线乙'), 't.a', 'lit', { passSeconds: 200, litAt: now(), certified: false });
+
+    expect(litCount(db, 't.a')).toBe(1); // 名额判定只看已认证
+
     db.prepare('INSERT INTO pioneers (node_id, user_id, message, created_at) VALUES (?, ?, ?, ?)').run(
       't.a',
       userId('在线甲'),
@@ -124,24 +126,28 @@ describe('成果认证（只标已认证）', () => {
 
     const res = await agent.get('/api/nodes/t.a/monument');
     expect(res.status).toBe(200);
-    expect(res.body.pioneers).toHaveLength(2);
+    expect(res.body.pioneers).toHaveLength(1);
     expect(res.body.pioneers[0]).toMatchObject({ username: '在线甲', certified: true });
-    expect(res.body.pioneers[1]).toMatchObject({ username: '离线乙', certified: false });
+
+    // 榜单不显示，记录本身不删除（只标不删）
+    expect(db.prepare('SELECT COUNT(*) AS n FROM pioneers').get().n).toBe(2);
   });
 
-  it('只补不撤：补认证有效，降级无效', async () => {
+  it('只补不撤：补认证后即可上榜，降级无效', async () => {
     await registerUser('离线乙');
-    await registerUser('在线甲');
     const uid = userId('离线乙');
 
     setState(db, uid, 't.a', 'lit', { passSeconds: 200, litAt: now(), certified: false });
-    expect(certifiedOf('离线乙', 't.a')).toBe(0);
+    expect((await agent.get('/api/nodes/t.a/speedrun')).body.ranks).toHaveLength(0);
 
-    // 事后核验通过 → 补上认证
+    // 事后核验通过 → 补上认证 → 上榜
     setState(db, uid, 't.a', 'lit', { certified: true });
     expect(certifiedOf('离线乙', 't.a')).toBe(1);
+    const board = await agent.get('/api/nodes/t.a/speedrun');
+    expect(board.body.ranks).toHaveLength(1);
+    expect(board.body.ranks[0].username).toBe('离线乙');
 
-    // 再写入未认证不会把它降级（监管只有补章，没有撤章）
+    // 再写入未认证不会把它降级（只有补章，没有撤章）
     setState(db, uid, 't.a', 'lit', { certified: false });
     expect(certifiedOf('离线乙', 't.a')).toBe(1);
   });

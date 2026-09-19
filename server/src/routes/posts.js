@@ -53,12 +53,15 @@ export function postsRouter({ db, secret }) {
   // ---- 纪念碑 ----
   router.get('/nodes/:id/monument', (req, res) => {
     promotePioneers(db); // 懒提升
-    const pioneers = listPioneers(db, req.params.id).map((p) => ({
-      username: p.username,
-      message: p.message,
-      createdAt: p.created_at,
-      certified: p.certified === 1, // 只标「已认证」；未认证的照常展示、不带任何标记
-    }));
+    // 榜单只接受已认证：未认证的点亮不上榜（名额判定同样只认已认证）
+    const pioneers = listPioneers(db, req.params.id)
+      .filter((p) => p.certified === 1)
+      .map((p) => ({
+        username: p.username,
+        message: p.message,
+        createdAt: p.created_at,
+        certified: true,
+      }));
     res.json({ pioneers });
   });
 
@@ -202,7 +205,7 @@ export function postsRouter({ db, secret }) {
       .prepare(
         `SELECT u.username, s.pass_seconds, s.lit_at, s.certified
          FROM user_node_state s JOIN users u ON u.id = s.user_id
-         WHERE s.node_id = ? AND s.state = 'lit' AND s.pass_seconds IS NOT NULL
+         WHERE s.node_id = ? AND s.state = 'lit' AND s.pass_seconds IS NOT NULL AND s.certified = 1
          ORDER BY s.pass_seconds ASC LIMIT ?`
       )
       .all(req.params.id, limit);
@@ -212,7 +215,7 @@ export function postsRouter({ db, secret }) {
         username: r.username,
         seconds: r.pass_seconds,
         litAt: r.lit_at,
-        certified: r.certified === 1, // 只标「已认证」；未认证的照常上榜、不带任何标记
+        certified: true, // 榜单只接受已认证
       })),
     });
   });

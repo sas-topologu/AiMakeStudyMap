@@ -1,14 +1,18 @@
 // 前十纪念碑 / 拓荒者
-// 规则：点亮节点时若该节点点亮（lit）人数 <10 → 记候选（check_at = +30min）；
+// 规则：点亮节点时若该节点**已认证**点亮人数 <10 → 记候选（check_at = +30min）；
 // 到期复核人数仍 <10 → 成为拓荒者（永久标记），可在纪念碑留言（永久 + 讨论区置顶）。
+// 名额只认已认证的点亮：稀缺荣誉不接受未认证成果（见 docs/概念模型.md §4.3）。
 // 提升采用懒模式：纪念碑/帖子读取路径与每次新 lit 时调用 promotePioneers，
 // 另由 app 启动时挂 60s 定时器兜底。
 const PIONEER_LIMIT = 10;
 const CANDIDATE_WINDOW_MS = 30 * 60 * 1000;
 
+// 已认证的点亮人数（名额判定只看这个）
 export function litCount(db, nodeId) {
   return db
-    .prepare("SELECT COUNT(*) AS n FROM user_node_state WHERE node_id = ? AND state = 'lit'")
+    .prepare(
+      "SELECT COUNT(*) AS n FROM user_node_state WHERE node_id = ? AND state = 'lit' AND certified = 1"
+    )
     .get(nodeId).n;
 }
 
