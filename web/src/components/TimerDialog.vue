@@ -5,7 +5,10 @@
     <div class="panel dialog">
       <h3>设置学习倒计时</h3>
       <p class="muted">
-        <template v-if="policy.timerEnabled">
+        <template v-if="timer.localOnly">
+          离线计时：不设上限、不占当日额度（库不在场，联网后也不补记）。
+        </template>
+        <template v-else-if="policy.timerEnabled">
           闯关需先开启倒计时（开启后不可取消）。今日剩余额度：
           <b>{{ timer.dailyRemainingMinutes ?? '…' }} 分钟</b>（每日上限 {{ policy.dailyLimitMinutes }} 分钟）
         </template>

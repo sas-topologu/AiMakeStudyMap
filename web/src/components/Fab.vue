@@ -101,9 +101,11 @@ async function toggleHot() {
 function onTimer() {
   if (timer.active) {
     ui.toast(
-      policy.timerEnabled
-        ? `倒计时进行中 ${timer.remainingText} · 今日剩余 ${timer.dailyRemainingMinutes ?? '…'} 分钟`
-        : `倒计时进行中 ${timer.remainingText} · 本库未设上限`,
+      timer.localOnly
+        ? `离线计时中 ${timer.remainingText} · 不设上限`
+        : policy.timerEnabled
+          ? `倒计时进行中 ${timer.remainingText} · 今日剩余 ${timer.dailyRemainingMinutes ?? '…'} 分钟`
+          : `倒计时进行中 ${timer.remainingText} · 本库未设上限`,
       'info',
       3200,
     );

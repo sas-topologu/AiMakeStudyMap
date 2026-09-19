@@ -1,4 +1,5 @@
 // 倒计时：进行中计时（每秒 tick）+ 当日额度；刷新页面后从 GET /api/timer 恢复
+// 离线（数据源不可达）时退化为**本地计时**：库不在场 → 不设上限、不占当日额度、不入库，联网后也不补记。
 import { defineStore } from 'pinia';
 import { api } from '../api/client.js';
 
@@ -8,6 +9,7 @@ export const useTimerStore = defineStore('timer', {
     remainingSeconds: 0,
     daily: null, // { usedSeconds, remainingSeconds }
     loaded: false,
+    localOnly: false, // 本次计时是离线本地计时（未进库）
     _ticker: null,
   }),
   getters: {
@@ -36,6 +38,7 @@ export const useTimerStore = defineStore('timer', {
     async restore() {
       try {
         const { timer, daily } = await api.timerCurrent();
+        this.localOnly = false;
         this.daily = daily;
         this._applyTimer(timer);
       } catch {
@@ -45,10 +48,26 @@ export const useTimerStore = defineStore('timer', {
       }
     },
     async start(minutes) {
-      const r = await api.timerStart(minutes);
-      this._applyTimer(r);
-      await this.refreshDaily();
-      return r;
+      try {
+        const r = await api.timerStart(minutes);
+        this.localOnly = false;
+        this._applyTimer(r);
+        await this.refreshDaily();
+        return r;
+      } catch (e) {
+        // 只有"库不可达"才退化；额度不足之类的业务拒绝照旧抛出
+        if (e.code !== 'OFFLINE' && e.code !== 'NETWORK') throw e;
+        const endsAt = Date.now() + minutes * 60 * 1000;
+        this.localOnly = true;
+        this.daily = { usedSeconds: 0, remainingSeconds: null, unlimited: true };
+        this._applyTimer({ endsAt: new Date(endsAt).toISOString(), remainingSeconds: minutes * 60 });
+        return {
+          endsAt: new Date(endsAt).toISOString(),
+          remainingSeconds: minutes * 60,
+          offline: true, // 离线本地计时：不设上限、不占额度
+          unlimited: true,
+        };
+      }
     },
     async refreshDaily() {
       try {

@@ -495,11 +495,11 @@ async function load() {
     starmap.cacheCard(c);
     localStorage.setItem('starmap.recent', c.id);
   } catch (e) {
-    // 离线：用缓存的卡片 + 本地成果继续 —— 断网时功能一个都不少
+    // 离线：用缓存的卡片 + 缓存里的真实状态 + 本地成果继续 —— 断网时功能一个都不少
     const cached = await starmap.cardFor(nodeId.value);
     if (cached) {
       card.value = cached;
-      state.value = localProgress.merge(nodeId.value, 'dim');
+      state.value = localProgress.merge(nodeId.value, starmap.cachedState(nodeId.value) ?? 'dim');
     } else {
       error.value = e.message;
     }

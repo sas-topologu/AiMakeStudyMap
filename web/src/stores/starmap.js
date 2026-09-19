@@ -122,6 +122,17 @@ export const useStarmapStore = defineStore('starmap', {
       }
     },
 
+    // 缓存里的节点状态：离线时用来还原真实进度（不能退化成 dim）
+    cachedState(id) {
+      const here = this.nodes?.find((n) => n.id === id)?.state;
+      if (here) return here;
+      for (const hood of Object.values(this.cache.hoods)) {
+        const s = hood?.nodes?.find((n) => n.id === id)?.state;
+        if (s) return s;
+      }
+      return null;
+    },
+
     // 用户状态可能变化（通关/点亮/跃迁）后：邻域快照失效，强制刷新当前中心
     async refreshStates() {
       this.cache.hoods = {};

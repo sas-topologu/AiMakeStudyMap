@@ -2,13 +2,15 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 
 const upload = vi.fn();
+let current = 'https://lib-a';
 vi.mock('../../api/client.js', () => ({
   api: { achievementsUpload: (items) => upload(items) },
+  getTerminalBase: () => current,
 }));
 
 const { useLocalProgressStore } = await import('../localProgress.js');
 
-// vitest node 环境无 localStorage → 提供内存 mock
+// vitest node 环境无 localStorage → 提供内存 mock（跨 store 实例保留，模拟"切换数据源后重载"）
 const memStore = new Map();
 globalThis.localStorage = {
   getItem: (k) => (memStore.has(k) ? memStore.get(k) : null),
@@ -19,6 +21,7 @@ globalThis.localStorage = {
 
 describe('本地成果（离线产出 → 联网上报）', () => {
   beforeEach(() => {
+    current = 'https://lib-a';
     setActivePinia(createPinia());
     localStorage.clear();
     upload.mockReset();
@@ -72,5 +75,31 @@ describe('本地成果（离线产出 → 联网上报）', () => {
     upload.mockRejectedValue(new Error('OFFLINE'));
     await expect(s.sync()).rejects.toThrow('OFFLINE');
     expect(s.pending).toHaveLength(1);
+  });
+
+  it('按数据源分账：A 库的离线成果不会上报给 B 库', async () => {
+    // 在 A 库离线通关
+    let s = useLocalProgressStore();
+    s.record('t.a', 'passed');
+    expect(s.pending).toHaveLength(1);
+
+    // 切到 B 库（真实场景是切换后重载 → 新 store 实例）
+    current = 'https://lib-b';
+    setActivePinia(createPinia());
+    s = useLocalProgressStore();
+    expect(s.pending).toHaveLength(0); // 看不到 A 的成果
+    expect(s.stateOf('t.a')).toBeNull();
+
+    s.record('t.b', 'passed');
+    upload.mockResolvedValue({ accepted: 1, skipped: 0, states: {} });
+    await s.sync();
+    expect(upload.mock.calls[0][0]).toEqual([{ nodeId: 't.b', state: 'passed', passSeconds: null }]); // 只发 B 的
+
+    // 切回 A 库：A 的成果仍在，且仍待上报
+    current = 'https://lib-a';
+    setActivePinia(createPinia());
+    s = useLocalProgressStore();
+    expect(s.pending).toEqual([{ nodeId: 't.a', state: 'passed', passSeconds: null }]);
+    expect(s.merge('t.a', 'dim')).toBe('passed');
   });
 });
