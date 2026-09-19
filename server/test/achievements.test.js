@@ -114,6 +114,7 @@ describe('成果上报（离线成果联网后上传）', () => {
     expect(res.status).toBe(200);
     expect(res.body.accepted).toBe(1);
     expect(res.body.skipped).toBe(1);
+    expect(res.body.ignored).toEqual(['不存在的节点']); // 个人端据此清掉本地那条记录
   });
 
   it('点亮不接受上传（必须联网由库见证）', async () => {

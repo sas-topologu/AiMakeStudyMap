@@ -29,10 +29,12 @@ export function achievementsRouter({ db, secret }) {
     let accepted = 0;
     let skipped = 0;
     const states = {};
+    const ignored = []; // 库里根本没有这些节点：个人端可以据此清掉本地那条记录
 
     for (const item of items) {
       if (!nodeExists.get(item.nodeId)) {
         skipped += 1;
+        ignored.push(item.nodeId);
         continue;
       }
       const current = effectiveState(db, userId, item.nodeId);
@@ -49,7 +51,7 @@ export function achievementsRouter({ db, secret }) {
       states[item.nodeId] = effectiveState(db, userId, item.nodeId);
     }
 
-    res.json({ accepted, skipped, states });
+    res.json({ accepted, skipped, states, ignored });
   });
 
   return router;

@@ -15,6 +15,12 @@
         placeholder="输入关键词（标题 / 简介 / 编号）"
         @input="onInput"
       />
+      <p v-if="offlineSearch" class="muted small">
+        离线搜索：结果来自本地缓存，库可能已有变化（改名 / 增卡 / 删卡）
+      </p>
+      <p v-if="offlineJumped" class="muted small">
+        已离线打开节点：不扣额度、记为未认证；联网后由库核对，节点不存在则忽略
+      </p>
       <div class="search-results">
         <p v-if="!q" class="muted">输入关键词开始搜索</p>
         <p v-else-if="searching" class="muted">搜索中…</p>
@@ -45,7 +51,9 @@
         </p>
         <div class="dialog-actions left">
           <button v-if="selected.state !== 'dim'" class="btn ghost" @click="goDirect">前往中心视图</button>
-          <button v-else class="btn ghost" @click="confirming = selected">跃迁至此（耗 1 额度）</button>
+          <button v-else class="btn ghost" @click="confirming = selected">
+            {{ offline ? '跃迁至此（离线，不扣额度）' : '跃迁至此（耗 1 额度）' }}
+          </button>
           <button class="btn primary" @click="navChoosing = true">导航至此</button>
         </div>
       </div>
@@ -66,7 +74,7 @@
         <p v-if="routeError" class="error-text">{{ routeError }}</p>
         <div v-if="noRoute" class="dialog-actions left">
           <button class="btn ghost" :disabled="jumping" @click="quickJump">
-            {{ jumping ? '跃迁中…' : '一键跃迁（耗 1 额度）' }}
+            {{ jumping ? '跃迁中…' : offline ? '一键跃迁（离线，不扣额度）' : '一键跃迁（耗 1 额度）' }}
           </button>
         </div>
         <div class="dialog-actions">
@@ -79,7 +87,11 @@
 
       <!-- dim 节点跃迁确认 -->
       <div v-if="confirming" class="jump-confirm">
-        <p>
+        <p v-if="offline">
+          离线跃迁「<b>{{ confirming.title }}</b>」：<b>不扣额度</b>、成果记为未认证。离线时无法向库核对，
+          若该节点不在当前库，联网后会被忽略。
+        </p>
+        <p v-else>
           「<b>{{ confirming.title }}</b>」尚未开放，跃迁将消耗 1 点额度（当前
           <b>{{ auth.quota ?? '未知' }}</b> 点；每月赠 1 点、上限 2 点）。确认跃迁？
         </p>
@@ -130,7 +142,10 @@ import { api } from '../api/client.js';
 import { useAuthStore } from '../stores/auth.js';
 import { useStarmapStore } from '../stores/starmap.js';
 import { useUiStore } from '../stores/ui.js';
+import { useLocalProgressStore } from '../stores/localProgress.js';
 import { useNavStore, ROUTE_TYPES } from '../stores/navigation.js';
+import { isOffline } from '../api/client.js';
+import { searchCachedCards } from '../utils/localSearch.js';
 import AiRouteMap from './AiRouteMap.vue';
 import AiCardFactory from './AiCardFactory.vue';
 
@@ -145,12 +160,16 @@ const stateLabel = (s) => STATE_LABEL[s] ?? s;
 const auth = useAuthStore();
 const starmap = useStarmapStore();
 const ui = useUiStore();
+const localProgress = useLocalProgressStore();
 const nav = useNavStore();
 const router = useRouter();
 
 const q = ref('');
 const results = ref([]);
 const searching = ref(false);
+const offline = ref(isOffline()); // 是否处于离线（库不可达）
+const offlineSearch = ref(false); // 本次结果来自本地缓存
+const offlineJumped = ref(false); // 本次会话内做过离线跃迁
 const selected = ref(null);
 const confirming = ref(null);
 const jumping = ref(false);
@@ -190,6 +209,9 @@ watch(
       aiError.value = '';
       aiMap.value = null;
       aiMissing.value = null;
+      offline.value = isOffline();
+      offlineSearch.value = false;
+      offlineJumped.value = false;
       await nextTick();
       inputEl.value?.focus();
     }
@@ -205,10 +227,22 @@ function onInput() {
   debounceTimer = setTimeout(async () => {
     searching.value = true;
     try {
+      if (isOffline()) throw Object.assign(new Error('offline'), { code: 'OFFLINE' });
       const { results: r } = await api.search(q.value);
       results.value = r;
+      offlineSearch.value = false;
     } catch (e) {
-      ui.toast(e.message, 'error');
+      if (e.code === 'OFFLINE' || e.code === 'NETWORK') {
+        // 离线：在本地缓存里搜（结果可能落后于库现状）
+        offlineSearch.value = true;
+        offline.value = true;
+        results.value = searchCachedCards(q.value, starmap.cache.cards).map((n) => ({
+          ...n,
+          state: localProgress.merge(n.id, starmap.cachedState(n.id) ?? 'dim'),
+        }));
+      } else {
+        ui.toast(e.message, 'error');
+      }
     } finally {
       searching.value = false;
     }
@@ -275,6 +309,10 @@ async function makeRoute() {
 async function quickJump() {
   jumping.value = true;
   routeError.value = '';
+  if (await jumpOffline(selected.value)) {
+    jumping.value = false;
+    return;
+  }
   try {
     const { quota } = await api.jump(selected.value.id);
     auth.setQuota(quota);
@@ -287,10 +325,30 @@ async function quickJump() {
   }
 }
 
+// 离线跃迁：库不在场 → 不扣额度、成果记为未认证；节点是否存在由库在联网后判定
+async function jumpOffline(target) {
+  if (!isOffline() && !offline.value) return false;
+  localProgress.record(target.id, 'open');
+  offlineJumped.value = true;
+  ui.toast(
+    `已离线打开「${target.title}」：不扣额度、记为未认证；若该节点不在当前库，联网后会被忽略`,
+    'info',
+    5200,
+  );
+  confirming.value = null;
+  selected.value = null;
+  await goCenter(target.id, { fresh: true });
+  return true;
+}
+
 async function doJump() {
   const target = confirming.value;
   jumping.value = true;
   jumpError.value = '';
+  if (await jumpOffline(target)) {
+    jumping.value = false;
+    return;
+  }
   try {
     const { quota } = await api.jump(target.id);
     auth.setQuota(quota);

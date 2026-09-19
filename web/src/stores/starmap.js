@@ -6,6 +6,7 @@
 import { defineStore } from 'pinia';
 import { api } from '../api/client.js';
 import { useUiStore } from './ui.js';
+import { useLocalProgressStore } from './localProgress.js';
 
 const CACHE_KEY = 'starmap.cache.v2'; // v2：连线深度 3→2，旧 depth=3 邻域缓存作废
 const RECENT_KEY = 'starmap.recent';
@@ -93,20 +94,20 @@ export const useStarmapStore = defineStore('starmap', {
       try {
         if (!force && this.cache.hoods[id]) {
           const hood = this.cache.hoods[id];
-          this.nodes = hood.nodes;
+          this.nodes = this._withLocalStates(hood.nodes);
           this.edges = hood.edges;
         } else {
           try {
             const hood = await api.neighborhood(id, 2);
-            this.nodes = hood.nodes;
+            this.nodes = this._withLocalStates(hood.nodes);
             this.edges = hood.edges;
-            this.cache.hoods[id] = hood;
+            this.cache.hoods[id] = hood; // 缓存里存库侧原始状态，本地成果不写进缓存
             this._saveCache();
           } catch (e) {
             // 数据源不可达（离线）：回退到本地缓存的任何邻域；仍无则保留现状，只提示不中断
             const cached = this.cache.hoods[id] || Object.values(this.cache.hoods)[0];
             if (cached) {
-              this.nodes = cached.nodes;
+              this.nodes = this._withLocalStates(cached.nodes);
               this.edges = cached.edges;
               this.offlineFallback = true;
             } else {
@@ -120,6 +121,15 @@ export const useStarmapStore = defineStore('starmap', {
       } finally {
         this.loading = false;
       }
+    },
+
+    // 库侧状态叠加本地成果（离线跃迁/离线通关后的本地状态要能在星图上看到）
+    _withLocalStates(nodes) {
+      const local = useLocalProgressStore();
+      return (nodes ?? []).map((n) => {
+        const merged = local.merge(n.id, n.state);
+        return merged === n.state ? n : { ...n, state: merged };
+      });
     },
 
     // 缓存里的节点状态：离线时用来还原真实进度（不能退化成 dim）

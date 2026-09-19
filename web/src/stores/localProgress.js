@@ -84,6 +84,8 @@ export const useLocalProgressStore = defineStore('localProgress', {
           const cur = bucket[it.nodeId];
           if (cur) cur.pending = false;
         }
+        // 库里根本没有的节点：清掉本地那条记录（离线跃迁可能指向库里不存在的节点）
+        for (const nodeId of res?.ignored ?? []) delete bucket[nodeId];
         // 库侧更高（例如已由库见证过）：采用库侧状态
         for (const [nodeId, state] of Object.entries(res?.states ?? {})) {
           const local = bucket[nodeId]?.state ?? 'dim';

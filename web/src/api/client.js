@@ -141,7 +141,10 @@ export function setUnauthorizedHandler(fn) {
 async function request(path, { method = 'GET', body } = {}) {
   // 离线熔断：冷却期内不发起网络请求（快速失败），避免反复申请占用资源
   if (isOffline()) {
-    throw new ApiError('OFFLINE', `数据源暂时不可用，已暂停请求（约 ${offlineRemainingSeconds()} 秒后自动恢复）`);
+    throw new ApiError(
+      'OFFLINE',
+      `离线中（数据源约 ${offlineRemainingSeconds()} 秒后自动重试）：这个操作需要联网 —— 社区、审核、云端的计时与额度都要连上库才能用；看卡、刷题、闯关仍可离线进行`,
+    );
   }
   const headers = {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -157,7 +160,7 @@ async function request(path, { method = 'GET', body } = {}) {
     });
   } catch {
     setOffline(OFFLINE_COOLDOWN_MS); // 进入离线态，暂停后续请求
-    throw new ApiError('NETWORK', '无法连接数据源，已切换为离线（将使用本地缓存）');
+    throw new ApiError('NETWORK', '无法连接数据源，已切换为离线（看卡、刷题、闯关可继续；需要联网的操作请等恢复）');
   }
   resetOffline(); // 有响应即视为可达
 
