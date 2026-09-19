@@ -2,7 +2,7 @@
 // - pass：闯关，试卷恰好 3 题，全对 → passed
 // - exam：考核点亮，题数 clamp(22 - 4*difficulty, 4, 20) 再取题库容量上限，全对 → lit
 // - practice：刷题练习，5 题，不计时、不占时间、不落状态，可无限重复（反复考核/刷题）
-// 试卷存内存（paperId → 快照），下发不带答案，提交时服务端判分；正式模式计时到期后提交一律拒绝
+// 试卷存内存（paperId → 快照），下发不带答案，提交时服务内核判分；正式模式计时到期后提交一律拒绝
 import crypto from 'node:crypto';
 import { errors } from '../errors.js';
 import { getNode } from '../db/contentRepo.js';

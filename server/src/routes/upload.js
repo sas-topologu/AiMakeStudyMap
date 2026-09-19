@@ -3,7 +3,7 @@
 // 格式由「可配置白名单」控制，大小有上限，落盘到 content/assets/uploads/。
 // - POST /api/upload           上传（需登录）：{ name, data(base64) } → { url }
 // - GET  /api/terminal/formats 查看允许的格式（公开）
-// - POST /api/terminal/formats 修改允许的格式（仅终端管理员）
+// - POST /api/terminal/formats 修改允许的格式（仅库管理员）
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
@@ -24,7 +24,7 @@ export function uploadRouter({ db, secret, assetsDir }) {
   });
 
   router.post('/terminal/formats', authRequired(secret), (req, res) => {
-    if (levelOf(req.user.id) !== 1) throw errors.forbidden('仅终端管理员可修改允许的文件格式');
+    if (levelOf(req.user.id) !== 1) throw errors.forbidden('仅库管理员可修改允许的文件格式');
     const list = setAllowedFormats(db, req.body?.formats);
     res.json({ ok: true, formats: list });
   });
@@ -40,7 +40,7 @@ export function uploadRouter({ db, secret, assetsDir }) {
     const ext = path.extname(name).toLowerCase().replace(/^\./, '');
     if (!ext) throw errors.validation('文件缺少扩展名');
     if (!isAllowed(db, ext)) {
-      throw errors.validation(`不允许的文件格式 .${ext}（可在终端设置中放开）`);
+      throw errors.validation(`不允许的文件格式 .${ext}（可在库设置中放开）`);
     }
     let buf;
     try {

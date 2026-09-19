@@ -19,7 +19,7 @@ export function quizRouter({ db, secret, quizService }) {
     res.json(quizService.startChallenge(req.user.id, req.params.id, mode));
   });
 
-  // 提交：服务端判分，全对落状态
+  // 提交：服务内核判分，全对落状态
   router.post('/papers/:paperId/submit', ...guard, (req, res) => {
     const { answers } = parseBody(submitSchema, req.body);
     res.json(quizService.submit(req.user.id, req.params.paperId, answers));

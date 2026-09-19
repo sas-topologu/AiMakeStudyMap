@@ -2,7 +2,7 @@
   "name": "zhidian-starmap",
   "version": "0.1.0",
   "private": true,
-  "description": "智点星谱 — 单机全功能的知识学习工具；云端作为数据仓库与社区",
+  "description": "智点星谱 — 独立使用即全功能的知识学习工具；群体端作为数据仓库与社区",
   "main": "desktop/main.cjs",
   "workspaces": [
     "server",

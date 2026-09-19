@@ -39,5 +39,5 @@
 
 ## 环境
 
-- 单机自用：`npm start` 即可，无外部依赖。
+- 独立使用：`npm start` 即可，无外部依赖。
 - 管理 AI 桥：`cp tools/management-ai/config.example.json tools/management-ai/config.json` 填好 → `npm run management-ai`。

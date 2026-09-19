@@ -86,7 +86,7 @@ export const useStarmapStore = defineStore('starmap', {
       }
     },
 
-    // 以 id 为中心加载邻域（优先缓存；离线时用缓存兜底，保证没有终端也能用）
+    // 以 id 为中心加载邻域（优先缓存；离线时用缓存兜底，保证没有数据源也能用）
     async centerOn(id, { force = false } = {}) {
       this.loading = true;
       this.error = null;
@@ -103,7 +103,7 @@ export const useStarmapStore = defineStore('starmap', {
             this.cache.hoods[id] = hood;
             this._saveCache();
           } catch (e) {
-            // 终端不可达（离线）：回退到本地缓存的任何邻域；仍无则保留现状，只提示不中断
+            // 数据源不可达（离线）：回退到本地缓存的任何邻域；仍无则保留现状，只提示不中断
             const cached = this.cache.hoods[id] || Object.values(this.cache.hoods)[0];
             if (cached) {
               this.nodes = cached.nodes;

@@ -1408,7 +1408,7 @@ code {
   font-size: 11px;
 }
 
-/* ---- 终端指向 ---- */
+/* ---- 数据源 ---- */
 .fx-terminal {
   display: flex;
   gap: 8px;
@@ -1509,7 +1509,7 @@ code {
   font-size: 12px;
 }
 
-/* ---- 全局风险提示（离线 / 终端身份变化） ---- */
+/* ---- 全局风险提示（离线 / 数据源身份变化） ---- */
 .risk-banner {
   position: sticky;
   top: 0;

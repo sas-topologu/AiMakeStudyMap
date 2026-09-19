@@ -72,7 +72,7 @@ const settings = reactive(load());
 const devMode = ref(localStorage.getItem(MODE_KEY) === '1');
 const features = reactive(loadFeatures());
 
-// 单机模式（终端在本机）下不可用的模块：社区/分享依赖云端多人环境
+// 独立使用（只连本机库）时不可用的模块：社区/分享依赖群体端多人环境
 export const LOCAL_UNAVAILABLE = ['community', 'share'];
 
 function persist() {
@@ -84,13 +84,13 @@ function persistFeatures() {
 
 export function useDevSettings() {
   const terminal = useTerminal();
-  // 最终是否启用 = 用户开关 且 （非单机模式 或 该模块在单机下可用）
+  // 最终是否启用 = 用户开关 且 （非独立使用 或 该模块在独立使用时可用）
   const enabled = (key) => {
     if (!features[key]) return false;
     if (terminal.isLocal.value && LOCAL_UNAVAILABLE.includes(key)) return false;
     return true;
   };
-  // 该模块在当前终端模式下是否可用（供 UI 提示灰显原因）
+  // 该模块在当前数据源下是否可用（供 UI 提示灰显原因）
   const available = (key) => !(terminal.isLocal.value && LOCAL_UNAVAILABLE.includes(key));
 
   return {

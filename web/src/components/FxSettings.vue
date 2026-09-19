@@ -88,16 +88,16 @@
         <button class="btn ghost block" @click="dev.reset()">恢复默认</button>
       </div>
 
-      <!-- 终端指向（客户端可指向任意终端：本地/云端） -->
+      <!-- 数据源（可指向本机库或任意群体端） -->
       <div class="fx-row fx-col">
         <span>
-          <b>终端</b>
+          <b>数据源</b>
           <small class="muted">
-            当前：{{ termBase }}（{{ termIsLocal ? '单机模式' : '云端模式' }}）
+            当前：{{ termBase }}（{{ termIsLocal ? '本机库' : '群体端' }}）
           </small>
         </span>
         <div class="fx-terminal">
-          <input v-model.trim="termInput" class="input" placeholder="终端地址，如 https://example.com" />
+          <input v-model.trim="termInput" class="input" placeholder="数据源地址，如 https://example.com" />
           <button class="btn ghost" :disabled="!termInput" @click="switchTerminal()">切换</button>
         </div>
         <div v-if="termList.length" class="fx-terminal-list">
@@ -116,10 +116,10 @@
           class="btn ghost block"
           @click="resetTerminal"
         >
-          恢复默认（本地终端）
+          恢复默认（本机库）
         </button>
         <small class="muted">
-          单机模式（终端在本机）下，社区/分享类功能不可用；切换终端后会重新加载。
+          连本机库（独立使用）时社区/分享类功能不可用；切换数据源后会重新加载。
         </small>
       </div>
 
@@ -128,20 +128,20 @@
         <span>
           <b>管理员</b>
           <small class="muted">
-            <template v-if="auth.isOwner">终端管理员（完全权限）</template>
-            <template v-else-if="auth.isAdmin">二级管理员（可审核/投稿，不能管终端）</template>
+            <template v-if="auth.isOwner">库管理员（完全权限）</template>
+            <template v-else-if="auth.isAdmin">二级管理员（可审核/投稿，不能管库）</template>
             <template v-else>普通用户</template>
           </small>
         </span>
-        <!-- 本机运行时可直接认领终端管理员 -->
+        <!-- 本机运行时可直接认领库管理员 -->
         <button
           v-if="termIsLocal && auth.isLoggedIn && !auth.isOwner"
           class="btn ghost block"
           @click="claimOwner"
         >
-          认领为终端管理员（本机）
+          认领为库管理员（本机）
         </button>
-        <!-- 终端管理员：管理授权密钥 -->
+        <!-- 库管理员：管理授权密钥 -->
         <template v-if="auth.isOwner">
           <div class="fx-terminal">
             <input v-model.trim="accessKey" class="input" placeholder="授权密钥（留空=自动生成）" />
@@ -178,7 +178,7 @@
         >
           <span>
             {{ m.label }}
-            <small class="muted">{{ dev.available(m.key) ? m.desc : '单机模式不可用（连云端终端后可用）' }}</small>
+            <small class="muted">{{ dev.available(m.key) ? m.desc : '独立使用时不可用（连上群体端后可用）' }}</small>
           </span>
           <input
             type="checkbox"
@@ -220,7 +220,7 @@ const SPEED_OPTIONS = [
 const fx = useFxSettings();
 const dev = useDevSettings();
 
-// 终端指向
+// 数据源
 const term = useTerminal();
 const termBase = term.base;
 const termList = term.list;
@@ -232,7 +232,7 @@ function switchTerminal(url) {
   const u = url || termInput.value;
   if (!u) return;
   term.set(u);
-  // 切换后重新拉取该终端的数据
+  // 切换后重新拉取该数据源的数据
   location.reload();
 }
 function resetTerminal() {
@@ -249,7 +249,7 @@ const shownKey = ref('');
 async function claimOwner() {
   try {
     await auth.claimOwner();
-    ui.toast(auth.isOwner ? '已成为终端管理员' : '认领失败（只能在终端本机认领）', auth.isOwner ? 'success' : 'error');
+    ui.toast(auth.isOwner ? '已成为库管理员' : '认领失败（只能在本机认领）', auth.isOwner ? 'success' : 'error');
   } catch (e) {
     ui.toast(e.message, 'error');
   }

@@ -139,7 +139,7 @@ const formats = ref([]);
 const fileInput = ref(null);
 const uploadTarget = ref('post'); // post | reply
 
-// 允许的文件格式（终端可配置）——用于提示与前置校验
+// 允许的文件格式（库可配置）——用于提示与前置校验
 async function loadFormats() {
   try {
     const { formats: list } = await api.formatsGet();
@@ -160,7 +160,7 @@ async function onFilePicked(e) {
   if (!f) return;
   const ext = (f.name.split('.').pop() || '').toLowerCase();
   if (formats.value.length && !formats.value.includes(ext)) {
-    ui.toast(`不允许的文件格式 .${ext}（可在终端设置中放开）`, 'error');
+    ui.toast(`不允许的文件格式 .${ext}（可在库设置中放开）`, 'error');
     return;
   }
   if (f.size > 5 * 1024 * 1024) {

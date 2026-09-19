@@ -40,7 +40,7 @@
       <ul class="muted">
         <li>让 AI 按规范制作知识卡（搜索/导航 → AI 辅助路线规划 → 缺卡可让 AI 制作），审核通过即入库</li>
         <li>把已有知识卡 JSON 放进 <code>content/cards/</code>，再运行 <code>npm run import</code></li>
-        <li>可选：从云端终端拉取一份 —— <code>node tools/deploy/pull-cards.mjs &lt;终端地址&gt;</code>，再 <code>npm run import</code></li>
+        <li>可选：从群体端拉取一份 —— <code>node tools/deploy/pull-cards.mjs &lt;数据源地址&gt;</code>，再 <code>npm run import</code></li>
       </ul>
     </div>
 

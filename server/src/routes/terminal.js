@@ -1,16 +1,16 @@
-// 终端信息与配置：供客户端识别终端、owner 管理「授权密钥」。
-// - GET  /api/terminal/info    公开：终端名称/内容版本/是否已设授权密钥（客户端连上后可读）
-// - POST /api/terminal/access-key 仅终端管理员(owner)：设置/轮换授权密钥（二级管理员凭它提升）
+// 数据源信息与配置：供个人端识别库、owner 管理「授权密钥」。
+// - GET  /api/terminal/info    公开：库名称/内容版本/是否已设授权密钥（个人端连上后可读）
+// - POST /api/terminal/access-key 仅库管理员(owner)：设置/轮换授权密钥（二级管理员凭它提升）
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import { errors } from '../errors.js';
 import { authRequired } from '../middleware/auth.js';
 import { getContentVersion } from '../db/contentRepo.js';
 
-const TERMINAL_NAME = '智点星谱终端';
+const TERMINAL_NAME = '智点星谱库';
 
-// 终端身份指纹：首次运行生成并持久化（meta.terminal_id）。
-// 客户端可记住该指纹 —— 若域名被他人夺走、换成另一台服务器，指纹必然不同，客户端即可识别"这不是原来的终端"。
+// 数据源身份指纹：首次运行生成并持久化（meta.terminal_id）。
+// 个人端可记住该指纹 —— 若域名被他人夺走、换成另一台服务器，指纹必然不同，个人端即可识别"这不是原来的库"。
 function terminalId(db) {
   const row = db.prepare("SELECT value FROM meta WHERE key = 'terminal_id'").get();
   if (row?.value) return row.value;
@@ -36,7 +36,7 @@ export function terminalRouter({ db, secret }) {
       )
       .run(v);
 
-  // 终端身份信息（公开；不含密钥本身）
+  // 数据源身份信息（公开；不含密钥本身）
   router.get('/terminal/info', (req, res) => {
     res.json({
       name: TERMINAL_NAME,
@@ -49,7 +49,7 @@ export function terminalRouter({ db, secret }) {
   // 设置/轮换授权密钥（仅 owner）
   router.post('/terminal/access-key', authRequired(secret), (req, res) => {
     if (levelOf(req.user.id) !== 1) {
-      throw errors.forbidden('仅终端管理员可设置授权密钥');
+      throw errors.forbidden('仅库管理员可设置授权密钥');
     }
     const action = String(req.body?.action ?? 'set');
     if (action === 'clear') {
@@ -66,7 +66,7 @@ export function terminalRouter({ db, secret }) {
   // 查看当前授权密钥（仅 owner，用于把密钥交给二级管理员）
   router.get('/terminal/access-key', authRequired(secret), (req, res) => {
     if (levelOf(req.user.id) !== 1) {
-      throw errors.forbidden('仅终端管理员可查看授权密钥');
+      throw errors.forbidden('仅库管理员可查看授权密钥');
     }
     res.json({ key: getKey() });
   });

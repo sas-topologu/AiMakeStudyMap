@@ -2,8 +2,8 @@
   <div v-if="banner" class="risk-banner" :class="banner.level">
     <span>{{ banner.text }}</span>
     <template v-if="banner.action === 'trust'">
-      <button class="btn ghost" @click="acceptNewTerminal">仍要信任该终端</button>
-      <button class="btn ghost" @click="revertTerminal">切回默认终端</button>
+      <button class="btn ghost" @click="acceptNewTerminal">仍要信任该数据源</button>
+      <button class="btn ghost" @click="revertTerminal">切回默认数据源</button>
     </template>
     <template v-else-if="banner.action === 'retry'">
       <button class="btn ghost" @click="retryNow">立即重试</button>
@@ -17,7 +17,7 @@
 </template>
 
 <script setup>
-// 全局：右上角账号栏 + 风险提示（离线 / 终端身份变化）
+// 全局：右上角账号栏 + 风险提示（离线 / 数据源身份变化）
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import Fab from './components/Fab.vue';
@@ -48,14 +48,14 @@ const banner = computed(() => {
     return {
       level: 'danger',
       action: 'trust',
-      text: `⚠ 当前终端（${getTerminalBase()}）的身份与之前不同：可能不是原来的终端（域名被替换/被他人接管）。已暂停自动信任，请确认后再继续。`,
+      text: `⚠ 当前数据源（${getTerminalBase()}）的身份与之前不同：可能不是原来的库（域名被替换/被他人接管）。已暂停自动信任，请确认后再继续。`,
     };
   }
   if (offline.value) {
     return {
       level: 'warn',
       action: 'retry',
-      text: '⚡ 终端暂时不可达：已切换为离线（使用本地缓存），并暂停了后续请求以免反复申请占用资源。',
+      text: '⚡ 数据源暂时不可达：已切换为离线（使用本地缓存），并暂停了后续请求以免反复申请占用资源。',
     };
   }
   return null;

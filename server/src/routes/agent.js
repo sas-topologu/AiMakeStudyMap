@@ -262,7 +262,7 @@ export function agentRouter({ db, secret }) {
   });
 
   // ---- 投稿知识卡（校验 → 存待审 → 建 card_review 任务；仅登录用户） ----
-  // 方案乙 + 服务端管理 AI：投稿不直接入库，一审通过后进公示窗口，公示期无异议/第三方终审通过才入库。
+  // 方案乙 + 群体端管理 AI：投稿不直接入库，一审通过后进公示窗口，公示期无异议/第三方终审通过才入库。
   // 投稿被拒达到本周阈值即功能冻结（冻结投稿功能，时长随次数递增，每周重置）。
   router.post('/agent/cards', authRequired(secret), (req, res) => {
     const freeze = checkFreeze(db, req.user.id);

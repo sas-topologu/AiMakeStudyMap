@@ -1,14 +1,14 @@
-// API 客户端：统一 fetch 封装
+// API 封装：统一 fetch
 // - 自动携带 JWT（localStorage）
 // - 错误统一抛 { code, message, status }
 // - 401 清 token 并触发 onUnauthorized 回调（由 main.js 注入跳转逻辑）
-// - 【去中心化】终端指向：客户端可指向任意终端。默认唯一指向「你的终端」
-//   （构建时注入 VITE_TERMINAL_URL；未注入则用当前页面地址=部署的终端）；可切换并记住历史。
+// - 【去中心化】数据源：个人端可指向任意数据源。默认指向「你自己的库」
+//   （构建时注入 VITE_TERMINAL_URL；未注入则用当前页面地址＝部署所在的库）；可切换并记住历史。
 const TOKEN_KEY = 'starmap.token';
 const TERMINAL_CUR = 'starmap:terminal.current';
 const TERMINAL_LIST = 'starmap:terminal.list';
 
-// 内置默认终端（唯一）：VITE_TERMINAL_URL > 当前页面 origin（部署即终端）
+// 内置默认数据源（唯一）：VITE_TERMINAL_URL > 当前页面 origin（部署在哪，库就在哪）
 const DEFAULT_TERMINAL = (() => {
   try {
     return import.meta.env?.VITE_TERMINAL_URL || (typeof window !== 'undefined' ? window.location.origin : '');
@@ -43,7 +43,7 @@ export function resetTerminal() {
   localStorage.removeItem(TERMINAL_CUR);
 }
 
-// ---- 离线熔断：终端不可达时进入离线态，在冷却期内"快速失败"而不再发起网络请求，
+// ---- 离线熔断：数据源不可达时进入离线态，在冷却期内"快速失败"而不再发起网络请求，
 //      避免反复申请导致空转、占用计算机资源。冷却结束后自动尝试恢复一次。----
 const OFFLINE_COOLDOWN_MS = 30000;
 let offlineUntil = 0;
@@ -76,8 +76,8 @@ export function resetOffline() {
   setOffline(0);
 }
 
-// ---- 终端身份指纹（防仿冒 / 防域名被夺后被替换）----
-// 首次连接某终端时记住其指纹（TOFU）；之后若指纹变化 → 说明"不是原来的终端"，应拦截并提示。
+// ---- 数据源身份指纹（防仿冒 / 防域名被夺后被替换）----
+// 首次连接某数据源时记住其指纹（TOFU）；之后若指纹变化 → 说明"不是原来的库"，应拦截并提示。
 const TERMINAL_FP_KEY = 'starmap:terminal.fp';
 function readFpMap() {
   try {
@@ -101,7 +101,7 @@ export function forgetFingerprint(base) {
   localStorage.setItem(TERMINAL_FP_KEY, JSON.stringify(m));
 }
 
-// 校验终端身份：返回 { ok, reason?, fingerprint?, expected? }
+// 校验数据源身份：返回 { ok, reason?, fingerprint?, expected? }
 export async function verifyTerminal(base = getTerminalBase()) {
   try {
     const res = await fetch(`${base}/api/terminal/info`, { cache: 'no-store' });
@@ -141,7 +141,7 @@ export function setUnauthorizedHandler(fn) {
 async function request(path, { method = 'GET', body } = {}) {
   // 离线熔断：冷却期内不发起网络请求（快速失败），避免反复申请占用资源
   if (isOffline()) {
-    throw new ApiError('OFFLINE', `终端暂时不可用，已暂停请求（约 ${offlineRemainingSeconds()} 秒后自动恢复）`);
+    throw new ApiError('OFFLINE', `数据源暂时不可用，已暂停请求（约 ${offlineRemainingSeconds()} 秒后自动恢复）`);
   }
   const headers = {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -157,7 +157,7 @@ async function request(path, { method = 'GET', body } = {}) {
     });
   } catch {
     setOffline(OFFLINE_COOLDOWN_MS); // 进入离线态，暂停后续请求
-    throw new ApiError('NETWORK', '无法连接终端，已切换为离线（将使用本地缓存）');
+    throw new ApiError('NETWORK', '无法连接数据源，已切换为离线（将使用本地缓存）');
   }
   resetOffline(); // 有响应即视为可达
 
@@ -188,7 +188,7 @@ export const api = {
   me: () => request('/auth/me'),
   promoteAdmin: (adminKey) => request('/auth/promote-admin', { method: 'POST', body: { adminKey } }),
   claimOwner: () => request('/auth/claim-owner', { method: 'POST' }),
-  // 终端信息与授权密钥（授权密钥仅终端管理员可管理）
+  // 库信息与授权密钥（授权密钥仅库管理员可管理）
   terminalInfo: () => request('/terminal/info'),
   accessKeyGet: () => request('/terminal/access-key'),
   accessKeySet: (body) => request('/terminal/access-key', { method: 'POST', body }),

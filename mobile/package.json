@@ -2,7 +2,7 @@
   "name": "zhidian-mobile",
   "version": "0.1.0",
   "private": true,
-  "description": "智点星谱 · 手机客户端（Capacitor：把 web 客户端打包为 Android App）",
+  "description": "智点星谱 · 手机个人端（Capacitor：把个人端界面打包为 Android App）",
   "scripts": {
     "prepare:www": "node -e \"const fs=require('fs');const p=require('path');fs.rmSync('www',{recursive:true,force:true});fs.cpSync(p.join('..','web','dist'),'www',{recursive:true})\"",
     "add:android": "cap add android",

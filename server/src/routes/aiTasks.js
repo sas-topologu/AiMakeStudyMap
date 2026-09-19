@@ -1,4 +1,4 @@
-// AI 任务桥：服务端管理 Agent（外部执行者，平台所有者配置）通过任务队列接入。
+// AI 任务桥：群体端管理 Agent（外部执行者，平台所有者配置）通过任务队列接入。
 // - GET  /api/ai-tasks                    拉取待处理任务（仅管理员；管理桥按间隔轮询）
 // - GET  /api/ai-tasks/:id                读任务详情（card_review 返回投稿卡供 AI 审核）
 // - POST /api/ai-tasks/:id/result         回写一审结论：approve → 进公示(ai_reviewed)，reject → 打回

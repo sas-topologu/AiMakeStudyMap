@@ -353,7 +353,7 @@ const timer = useTimerStore();
 const starmap = useStarmapStore();
 const ui = useUiStore();
 const dev = useDevSettings();
-// 社区类 Tab（讨论/二创/速通）随「社区」模块开关与终端模式联动
+// 社区类 Tab（讨论/二创/速通）随「社区」模块开关与数据源联动
 watch(
   () => dev.enabled('community'),
   (on) => {

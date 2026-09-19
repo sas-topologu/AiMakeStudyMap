@@ -63,7 +63,7 @@ export const useTimerStore = defineStore('timer', {
       this._ticker = setInterval(() => {
         if (!this.endsAt) return;
         this.remainingSeconds = Math.max(0, Math.round((this.endsAt - Date.now()) / 1000));
-        if (this.remainingSeconds <= 0) this.endsAt = null; // 到时自动失效（服务端同样拒绝提交）
+        if (this.remainingSeconds <= 0) this.endsAt = null; // 到时自动失效（提交时同样会被拒绝）
       }, 1000);
     },
   },

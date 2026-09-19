@@ -1,5 +1,5 @@
 // 节点状态机：dim 暗淡 → open 开放 → passed 通关 → lit 点亮
-// 核心规则全部在服务端判定，前端只做展示（防本地篡改）
+// 核心规则全部在服务内核判定，界面只做展示（防本地篡改）
 import { edgesOf, allEdges } from '../db/contentRepo.js';
 import { errors } from '../errors.js';
 

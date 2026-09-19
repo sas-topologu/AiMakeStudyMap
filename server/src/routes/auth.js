@@ -1,6 +1,6 @@
 // 认证：注册（含邮箱，可找回密码）/ 登录 / 改密 / 邮箱验证码
 // 账号标准模板：用户名 + 邮箱（唯一、可选）+ 密码（≥8 位含字母数字）。
-// 找回密码：邮箱验证码（15 分钟有效）；邮件发送默认 console + 留档（单机无邮件服务也能用），
+// 找回密码：邮箱验证码（15 分钟有效）；邮件发送默认 console + 留档（独立使用、无邮件服务也能用），
 // 若要真实发信，可自行安装 nodemailer 并在 server/config/mail.json 配置后替换 sendMail 实现。
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
@@ -42,10 +42,10 @@ export function authRouter({ db, secret, adminKey }) {
     }
     const hash = bcrypt.hashSync(password, 10);
     const month = new Date().toISOString().slice(0, 7);
-    // 两级管理员：admin_level 1=终端管理员(owner) / 2=二级管理员。
-    // 注册时带对「终端引导密钥」(STARMAP_ADMIN_KEY) → 直接成为终端管理员；
+    // 两级管理员：admin_level 1=库管理员(owner) / 2=二级管理员。
+    // 注册时带对「库引导密钥」(STARMAP_ADMIN_KEY) → 直接成为库管理员；
     // 二级管理员不在此产生（由 owner 设置授权密钥后，登录用 promote-admin 提升）。
-    // 未配置引导密钥（开发/测试兼容）时回退：首个注册自动成为终端管理员。
+    // 未配置引导密钥（开发/测试兼容）时回退：首个注册自动成为库管理员。
     const adminKeyInput = String(req.body?.adminKey ?? '').trim();
     const adminLevel = adminKey
       ? adminKeyInput && adminKeyInput === adminKey
@@ -74,17 +74,17 @@ export function authRouter({ db, secret, adminKey }) {
     res.json({ token, user: { id: row.id, username: row.username } });
   });
 
-  // 认领「终端管理员」：仅允许来自本机（loopback）的请求 —— 即"在终端本地登录就是管理员"。
-  // 云端部署时，可在服务器上对本机 3000 端口发起该请求来认领（无需密钥）。
+  // 认领「库管理员」：仅允许来自本机（loopback）的请求 —— 即"在本机登录就是管理员"。
+  // 部署到公网时，可在服务器上对本机 3000 端口发起该请求来认领（无需密钥）。
   router.post('/claim-owner', authRequired(secret), (req, res) => {
     const ip = req.ip || req.socket?.remoteAddress || '';
     const isLocal = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
-    if (!isLocal) throw errors.forbidden('只能在本机（终端所在机器）认领终端管理员');
+    if (!isLocal) throw errors.forbidden('只能在本机（库所在机器）认领库管理员');
     db.prepare('UPDATE users SET is_admin = 1, admin_level = 1 WHERE id = ?').run(req.user.id);
-    res.json({ ok: true, adminLevel: 1, message: '已认领终端管理员（完全权限）' });
+    res.json({ ok: true, adminLevel: 1, message: '已认领库管理员（完全权限）' });
   });
 
-  // 用「授权密钥」开启二级管理员（owner 在终端设置里配置；客户端持密钥登录后调用）
+  // 用「授权密钥」开启二级管理员（owner 在库设置里配置；个人端持密钥登录后调用）
   router.post('/promote-admin', authRequired(secret), (req, res) => {
     const keyInput = String(req.body?.adminKey ?? req.body?.key ?? '').trim();
     if (!keyInput) throw errors.validation('请提供授权密钥');
@@ -97,7 +97,7 @@ export function authRouter({ db, secret, adminKey }) {
     res.json({
       ok: true,
       adminLevel: level,
-      message: level === 1 ? '已开启终端管理员权限' : '已开启二级管理员权限',
+      message: level === 1 ? '已开启库管理员权限' : '已开启二级管理员权限',
     });
   });
 
@@ -128,7 +128,7 @@ export function authRouter({ db, secret, adminKey }) {
       'INSERT INTO email_codes (email, code, purpose, expires_at, created_at) VALUES (?, ?, ?, ?, ?)'
     ).run(email, code, 'reset', new Date(Date.now() + 15 * 60 * 1000).toISOString(), nowIso());
     sendMail(email, '智点星谱 · 找回密码', `验证码：${code}（15 分钟内有效）`);
-    res.json({ ok: true, message: '验证码已发送（若未配置邮件服务，验证码见服务端控制台）' });
+    res.json({ ok: true, message: '验证码已发送（若未配置邮件服务，验证码见运行日志）' });
   });
 
   // 用验证码重置密码

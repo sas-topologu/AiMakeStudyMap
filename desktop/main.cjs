@@ -1,5 +1,5 @@
-// 智点星谱 · PC 客户端（Electron 主进程）
-// 单机全功能：内置本地「终端」（Express + SQLite + 知识卡），启动后打开窗口指向本机服务。
+// 智点星谱 · PC 个人端（Electron 主进程）
+// 独立使用即全功能：内置本机库（Express + SQLite + 知识卡），启动后打开窗口指向本机服务。
 // 数据（数据库、上传文件）放在用户目录，保证打包后的程序目录只读也能正常运行。
 const { app, BrowserWindow, shell, dialog } = require('electron');
 const path = require('node:path');

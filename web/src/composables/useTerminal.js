@@ -1,8 +1,8 @@
-// 终端指向（客户端）：客户端可指向任意「终端」（本地或云端）。
-// - 默认指向「本地终端」（当前页面地址 = 你在本机启动的终端）
-// - 可切换并记住历史（多终端列表）
-// - 单机模式（终端在本机）下：社区类功能不可用（与模块开关联动）
-// 说明：切换终端后需要重新拉取数据，调用方负责 location.reload()。
+// 数据源（个人端）：可指向任意数据源（本机库或群体端）。
+// - 默认指向「本机库」（当前页面地址 = 你在本机启动的库）
+// - 可切换并记住历史（多数据源列表）
+// - 独立使用（只连本机库）时：社区类功能不可用（与模块开关联动）
+// 说明：切换数据源后需要重新拉取数据，调用方负责 location.reload()。
 import { computed, reactive } from 'vue';
 import {
   getTerminalBase,
@@ -12,7 +12,7 @@ import {
   resetTerminal as apiResetTerminal,
 } from '../api/client.js';
 
-// 判定是否"本机终端"（单机模式）：localhost / 127.0.0.1 / 内网地址
+// 判定是否"本机库"（独立使用）：localhost / 127.0.0.1 / 内网地址
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '::1', '[::1]', '0.0.0.0'];
 export function isLocalUrl(url) {
   try {
@@ -45,12 +45,12 @@ export function useTerminal() {
     defaultBase: computed(() => state.defaultBase),
     isLocal: computed(() => isLocalUrl(state.base)),
     mode: computed(() => (isLocalUrl(state.base) ? 'local' : 'cloud')),
-    // 切换终端（切换后需重载以重新拉取数据）
+    // 切换数据源（切换后需重载以重新拉取数据）
     set(url) {
       apiSetTerminal(url);
       sync();
     },
-    // 恢复默认（本地终端）
+    // 恢复默认（本机库）
     reset() {
       apiResetTerminal();
       sync();

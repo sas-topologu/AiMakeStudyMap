@@ -4,12 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="robots" content="noindex,nofollow" />
-    <title>智点星谱 · 终端管理</title>
+    <title>智点星谱 · 库管理</title>
     <link rel="stylesheet" href="/admin/admin.css" />
   </head>
   <body>
     <header class="bar">
-      <b>智点星谱 · 终端管理</b>
+      <b>智点星谱 · 库管理</b>
       <span id="who" class="muted"></span>
       <span class="spacer"></span>
       <button id="btnRefresh" class="btn ghost">刷新</button>
@@ -24,16 +24,16 @@
       <p id="loginErr" class="err"></p>
       <button id="btnLogin" class="btn primary">登录</button>
       <p class="muted small">
-        终端管理员：在终端本机认领；二级管理员：由终端管理员发放「授权密钥」，登录后提交即可获得。
+        库管理员：在本机认领；二级管理员：由库管理员发放「授权密钥」，登录后提交即可获得。
       </p>
     </section>
 
     <main id="app" hidden>
       <section class="panel card">
-        <h2>终端概览</h2>
+        <h2>库概览</h2>
         <div id="info" class="kv"></div>
         <div class="row" id="ownerActions" hidden>
-          <button id="btnClaim" class="btn ghost">认领为终端管理员（仅终端本机可认领）</button>
+          <button id="btnClaim" class="btn ghost">认领为库管理员（仅本机可认领）</button>
         </div>
       </section>
 
@@ -54,7 +54,7 @@
       </section>
 
       <section class="panel card" id="settingsCard" hidden>
-        <h2>设置（仅终端管理员）</h2>
+        <h2>设置（仅库管理员）</h2>
         <div class="row">
           <input id="accessKey" class="input" placeholder="授权密钥（留空=自动生成）" />
           <button id="btnKeySave" class="btn ghost">保存</button>

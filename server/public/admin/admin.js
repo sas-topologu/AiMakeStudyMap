@@ -1,5 +1,5 @@
-// 智点星谱 · 终端管理界面（纯静态，无构建步骤）
-// 功能：登录、终端概览、待处理任务（审核/驳回）、投稿/举报/勘误队列、授权密钥与文件格式（仅终端管理员）
+// 智点星谱 · 库管理界面（纯静态，无构建步骤）
+// 功能：登录、库概览、待处理任务（审核/驳回）、投稿/举报/勘误队列、授权密钥与文件格式（仅库管理员）
 const TOKEN_KEY = 'starmap.admin.token';
 const $ = (id) => document.getElementById(id);
 
@@ -78,18 +78,18 @@ function renderAuth() {
     $('who').textContent = '';
     return;
   }
-  const lvl = state.user.isOwner ? '终端管理员' : state.user.isAdmin ? '二级管理员' : '普通用户';
+  const lvl = state.user.isOwner ? '库管理员' : state.user.isAdmin ? '二级管理员' : '普通用户';
   $('who').textContent = `${state.user.username} · ${lvl}`;
   $('settingsCard').hidden = !state.user.isOwner;
   $('ownerActions').hidden = state.user.isOwner;
 }
 
-/* ---------------- 终端概览 ---------------- */
+/* ---------------- 库概览 ---------------- */
 
 async function refreshInfo() {
   const info = await req('/terminal/info');
   $('info').innerHTML = `
-    <div><b>终端名称</b><span>${info.name}</span></div>
+    <div><b>库名称</b><span>${info.name}</span></div>
     <div><b>知识库版本</b><span>v${info.contentVersion}</span></div>
     <div><b>身份指纹</b><span>${info.fingerprint || '—'}</span></div>
     <div><b>授权密钥</b><span>${info.hasAccessKey ? '已设置' : '未设置'}</span></div>`;
@@ -180,7 +180,7 @@ async function submitTask(id, verdict) {
   }
 }
 
-/* ---------------- 设置（终端管理员） ---------------- */
+/* ---------------- 设置（库管理员） ---------------- */
 
 async function refreshSettings() {
   if (!state.user?.isOwner) return;
@@ -232,7 +232,7 @@ function bind() {
   $('btnClaim').onclick = async () => {
     try {
       await req('/auth/claim-owner', { method: 'POST' });
-      toast('已成为终端管理员');
+      toast('已成为库管理员');
       await refreshMe();
       renderAuth();
       await refreshAll();

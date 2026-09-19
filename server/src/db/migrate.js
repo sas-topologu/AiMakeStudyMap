@@ -189,7 +189,7 @@ const migrations = [
   {
     version: 5,
     name: '005_ai_tasks',
-    // AI 任务桥：服务端管理 Agent（外部执行者）通过任务队列接入。
+    // AI 任务桥：群体端管理 Agent（外部执行者）通过任务队列接入。
     // ai_tasks：任务（类型/状态/结论/模型指纹）；card_submissions：待审投稿卡（未过审不入主库）。
     // 管理与普通执行者由凭证角色区分，见 routes/aiTasks.js。
     sql: `
@@ -292,8 +292,8 @@ const migrations = [
   {
     version: 9,
     name: '009_admin_level',
-    // 两级管理员：admin_level 0=普通 / 1=终端管理员（本地认领，完全权限，可设授权密钥）
-    //                              2=二级管理员（凭终端授权密钥，可审核/投稿/举报，不可设密钥/管终端）
+    // 两级管理员：admin_level 0=普通 / 1=库管理员（本机认领，完全权限，可设授权密钥）
+    //                              2=二级管理员（凭库授权密钥，可审核/投稿/举报，不可设密钥/管库）
     sql: `
       ALTER TABLE users ADD COLUMN admin_level INTEGER NOT NULL DEFAULT 0;
       UPDATE users SET admin_level = 1 WHERE is_admin = 1;

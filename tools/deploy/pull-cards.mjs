@@ -1,5 +1,5 @@
-// 可选：从某个「终端」拉取整份知识库（知识卡 JSON）到本地，供本地终端使用。
-// 用法：node tools/deploy/pull-cards.mjs <终端地址> [目标目录]
+// 可选：从某个数据源（本机库或群体端）拉取整份知识库（知识卡 JSON）到本地。
+// 用法：node tools/deploy/pull-cards.mjs <数据源地址> [目标目录]
 //   例：node tools/deploy/pull-cards.mjs https://aimakestudymap.online
 //       node tools/deploy/pull-cards.mjs http://127.0.0.1:3000 content/cards
 // 拉取完成后执行：npm run import
@@ -9,14 +9,14 @@ import path from 'node:path';
 
 const [, , urlArg, dirArg] = process.argv;
 if (!urlArg) {
-  console.error('用法：node tools/deploy/pull-cards.mjs <终端地址> [目标目录]');
+  console.error('用法：node tools/deploy/pull-cards.mjs <数据源地址> [目标目录]');
   process.exit(1);
 }
 const base = urlArg.replace(/\/+$/, '');
 const outDir = path.resolve(dirArg || 'content/cards');
 
 async function main() {
-  console.log(`从终端拉取知识库：${base}`);
+  console.log(`从数据源拉取知识库：${base}`);
   let data;
   try {
     const res = await fetch(`${base}/api/sync?since=0`);
@@ -28,7 +28,7 @@ async function main() {
   }
   const nodes = data?.nodes ?? [];
   if (!nodes.length) {
-    console.error('该终端没有返回任何知识卡。');
+    console.error('该数据源没有返回任何知识卡。');
     process.exit(1);
   }
   fs.mkdirSync(outDir, { recursive: true });

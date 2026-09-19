@@ -1,4 +1,4 @@
-# 自动构建「手机客户端 APK」（GitHub 云端构建，无需你本地装 Android SDK）
+# 自动构建「手机个人端 APK」（GitHub 云端构建，无需你本地装 Android SDK）
 # 触发方式：仓库页面 → Actions → 选 “Build Android APK” → Run workflow → 跑完在该次运行里下载 APK
 #
 # 说明：不用 android-actions/setup-android（它默认要装已被移除的 "tools" 包会失败），
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       terminal_url:
-        description: '客户端默认指向的终端地址（留空则用仓库变量 TERMINAL_URL / 默认线上地址）'
+        description: '个人端默认指向的数据源地址（留空则用仓库变量 TERMINAL_URL / 默认线上地址）'
         required: false
         default: ''
 
@@ -48,13 +48,13 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
         run: npm ci
 
-      - name: 写入终端地址并构建前端
+      - name: 写入数据源地址并构建前端
         env:
           INPUT_URL: ${{ github.event.inputs.terminal_url }}
           VAR_URL: ${{ vars.TERMINAL_URL }}
         run: |
           URL="${INPUT_URL:-${VAR_URL:-https://aimakestudymap.online}}"
-          echo "客户端默认指向：$URL"
+          echo "个人端默认指向：$URL"
           echo "VITE_TERMINAL_URL=$URL" > web/.env.production
           npm run build
 

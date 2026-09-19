@@ -39,7 +39,7 @@ export const useAuthStore = defineStore('auth', {
       this.user = user;
       localStorage.setItem(USER_KEY, JSON.stringify(user));
     },
-    // 从 /api/auth/me 刷新跃迁额度与管理级别（1=终端管理员 2=二级管理员 0=普通）
+    // 从 /api/auth/me 刷新跃迁额度与管理级别（1=库管理员 2=二级管理员 0=普通）
     async refreshQuota() {
       try {
         const { user, jumpQuota } = await api.me();
@@ -53,7 +53,7 @@ export const useAuthStore = defineStore('auth', {
         /* 离线/未登录时静默 */
       }
     },
-    // 本机认领终端管理员（本地运行时，或识别到可认领时）
+    // 本机认领库管理员（本地运行时，或识别到可认领时）
     async claimOwner() {
       await api.claimOwner();
       await this.refreshQuota();

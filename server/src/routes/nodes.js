@@ -11,7 +11,7 @@ export function nodesRouter({ db, secret }) {
   router.get('/nodes/:id', authOptional(secret), (req, res) => {
     const node = getNode(db, req.params.id);
     if (!node) throw errors.notFound('节点不存在');
-    // 题库不随节点详情下发（试卷由闯关接口单独生成，判分在服务端）
+    // 题库不随节点详情下发（试卷由闯关接口单独生成，判分在服务内核）
     const { questionBank, ...card } = node.content;
     res.json({
       card,

@@ -41,32 +41,32 @@ const STATIC_EXTS = new Set([
   '.gif', '.webp', '.ico', '.woff', '.woff2', '.ttf', '.otf', '.eot', '.txt', '.webmanifest',
 ]);
 
-// 管理型界面（终端自有）：静态托管 server/public/admin，公开可访问（操作需管理员登录）。
+// 管理型界面（库自有）：静态托管 server/public/admin，公开可访问（操作需管理员登录）。
 const ADMIN_DIR = path.resolve(__dirname, '../public/admin');
 
-// 公网访问根路径时展示的说明页（服务端不再对外提供学习端网页）
+// 公网访问根路径时展示的说明页（群体端不再对外提供学习界面）
 const PUBLIC_INFO_HTML = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>智点星谱 · 终端</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>智点星谱 · 群体端</title>
 <style>body{margin:0;background:#070b16;color:#dfe6ff;font:15px/1.8 system-ui,"Microsoft YaHei",sans-serif;
 display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}
 .card{max-width:560px;border:1px solid #24304d;border-radius:14px;padding:26px 30px;background:#0c1426}
 h1{font-size:19px;margin:0 0 12px}p{margin:8px 0;color:#9fb0d8}code{background:#131d33;padding:2px 6px;border-radius:5px}
 a{color:#7aa2ff}</style></head><body><div class="card">
-<h1>智点星谱 · 终端（服务端）</h1>
-<p>本终端只提供 <b>数据接口</b> 与 <b>管理界面</b>，不再对外提供学习端网页。</p>
-<p>学习端请使用 <b>PC 客户端</b> 或 <b>手机客户端</b>（在其"设置 → 终端"里指向本地址）。</p>
+<h1>智点星谱 · 群体端</h1>
+<p>本群体端只提供 <b>数据接口</b> 与 <b>管理界面</b>，不再对外提供学习界面。</p>
+<p>学习端请使用 <b>PC 个人端</b> 或 <b>手机个人端</b>（在其"设置 → 数据源"里指向本地址）。</p>
 <p>管理界面：<a href="/admin">/admin</a></p>
 </div></body></html>`;
 
-// 判断请求是否来自本机（本机 = 运行终端的这台机器上跑的客户端，如 PC 客户端内置的终端）
+// 判断请求是否来自本机（本机 = 运行库的这台机器上跑的个人端，如 PC 个人端内置的库）
 function isLoopbackReq(req) {
   const ip = req.ip || req.socket?.remoteAddress || '';
   return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
 }
 
 // 静态托管：下载格式限制 + SPA（history 路由）回退 + 缓存策略
-// 【服务端改造】学习端网页**只对本机开放**（供 PC 客户端内置终端使用）；
-// 公网访问只给管理界面 /admin 与说明页 —— 服务端不再对外提供学习端网页。
+// 【群体端改造】学习界面**只对本机开放**（供 PC 个人端内置库使用）；
+// 公网访问只给管理界面 /admin 与说明页 —— 群体端不再对外提供学习界面。
 function mountStatic(app, distDir) {
   const indexHtml = path.join(distDir, 'index.html');
 
@@ -79,7 +79,7 @@ function mountStatic(app, distDir) {
         res.setHeader('Cache-Control', 'no-cache');
         return res.type('html').send(PUBLIC_INFO_HTML);
       }
-      return next(errors.notFound('服务端仅提供接口与管理界面，学习端请使用客户端'));
+      return next(errors.notFound('群体端仅提供接口与管理界面，学习请使用个人端'));
     }
     const ext = path.extname(req.path).toLowerCase();
     if (ext && !STATIC_EXTS.has(ext)) return next(errors.notFound('不支持的下载格式'));
@@ -122,13 +122,13 @@ export function createApp(
   } = {}
 ) {
   const app = express();
-  // 只信任本机（Nginx）作为代理：这样 req.ip 是 Nginx 记录的客户端真实 IP，
-  // 且客户端伪造的 X-Forwarded-For 不会生效 —— 用于"仅本机可认领终端管理员"的判定。
+  // 只信任本机（Nginx）作为代理：这样 req.ip 是 Nginx 记录的访客真实 IP，
+  // 且访客伪造的 X-Forwarded-For 不会生效 —— 用于"仅本机可认领库管理员"的判定。
   app.set('trust proxy', 'loopback');
   // 上传以 base64 放在 JSON 里（保持通道统一），故放宽 JSON 体积上限
   app.use(express.json({ limit: '8mb' }));
 
-  // 去中心化：客户端可指向任意终端（跨域）。鉴权用 Authorization 头而非 Cookie，
+  // 去中心化：个人端可指向任意数据源（跨域）。鉴权用 Authorization 头而非 Cookie，
   // 故放开跨域来源并允许 Authorization 头即可（不使用 cookie 凭证）。
   app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
@@ -182,7 +182,7 @@ export function createApp(
   app.use('/api', terminalRouter(ctx));
   app.use('/api', uploadRouter(ctx));
 
-  // 管理型界面（终端自有）：始终挂载，不依赖前端是否构建过
+  // 管理型界面（库自有）：始终挂载，不依赖界面是否构建过
   app.use(
     '/admin',
     express.static(ADMIN_DIR, {

@@ -713,8 +713,8 @@ describe('API 集成', () => {
     expect(me3.body.user.is_admin).toBe(true);
   });
 
-  it('两级管理员：本机认领终端管理员 / 授权密钥开二级 / 二级不可设密钥', async () => {
-    const owner = await registerUser('owner1'); // 未配置引导密钥时首个注册=终端管理员
+  it('两级管理员：本机认领库管理员 / 授权密钥开二级 / 二级不可设密钥', async () => {
+    const owner = await registerUser('owner1'); // 未配置引导密钥时首个注册=库管理员
     // 本机认领（supertest 请求来自 127.0.0.1）
     const claim = await agent.post('/api/auth/claim-owner').set(auth(owner));
     expect(claim.status).toBe(200);
@@ -724,7 +724,7 @@ describe('API 集成', () => {
     expect(mk.status).toBe(200);
     const key = mk.body.key;
     expect(key).toBeTruthy();
-    // 终端信息（公开）
+    // 数据源信息（公开）
     const info = await agent.get('/api/terminal/info');
     expect(info.body.hasAccessKey).toBe(true);
     // 另一用户凭授权密钥 → 二级管理员
@@ -750,8 +750,8 @@ describe('API 集成', () => {
     expect(wrong.status).toBe(403);
   });
 
-  it('风险防护：终端身份指纹稳定可校验 + 信息通道仅接受 JSON', async () => {
-    // 指纹存在且稳定（客户端据此识别"是不是同一个终端"，防域名被夺后替换）
+  it('风险防护：数据源身份指纹稳定可校验 + 信息通道仅接受 JSON', async () => {
+    // 指纹存在且稳定（个人端据此识别"是不是同一个库"，防域名被夺后替换）
     const info1 = await agent.get('/api/terminal/info');
     expect(info1.status).toBe(200);
     expect(info1.body.fingerprint).toBeTruthy();
@@ -789,7 +789,7 @@ describe('API 集成', () => {
     const got = await agent.get(ok.body.url);
     expect(got.status).toBe(200);
     expect(String(got.headers['content-type'])).toContain('image/png');
-    // 非终端管理员不能改格式
+    // 非库管理员不能改格式
     const sub = await registerUser('up_user');
     expect((await agent.post('/api/terminal/formats').set(auth(sub)).send({ formats: 'exe' })).status).toBe(403);
     // 管理员放开 exe → 上传成功（格式可配置，不写死）
