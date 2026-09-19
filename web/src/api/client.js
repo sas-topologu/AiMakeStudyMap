@@ -189,15 +189,8 @@ export const api = {
     request('/auth/register', { method: 'POST', body: { username, password, email: email || undefined, adminKey: adminKey || undefined } }),
   login: (username, password) => request('/auth/login', { method: 'POST', body: { username, password } }),
   me: () => request('/auth/me'),
-  promoteAdmin: (adminKey) => request('/auth/promote-admin', { method: 'POST', body: { adminKey } }),
-  claimOwner: () => request('/auth/claim-owner', { method: 'POST' }),
-  // 库信息与授权密钥（授权密钥仅库管理员可管理）
-  terminalInfo: () => request('/terminal/info'),
-  accessKeyGet: () => request('/terminal/access-key'),
-  accessKeySet: (body) => request('/terminal/access-key', { method: 'POST', body }),
-  // 允许的文件格式（可配置）与上传
+  // 允许的文件格式（只读：讨论区上传前校验；管理设置在库管理界面 /admin）
   formatsGet: () => request('/terminal/formats'),
-  formatsSet: (formats) => request('/terminal/formats', { method: 'POST', body: { formats } }),
   // 学习策略（计时/防沉迷、跃迁额度开关）：由库提供，个人端据此显示或隐藏入口
   policyGet: () => request('/terminal/policy'),
   uploadFile: (name, data) => request('/upload', { method: 'POST', body: { name, data } }),

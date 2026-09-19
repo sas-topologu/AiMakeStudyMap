@@ -123,45 +123,23 @@
         </small>
       </div>
 
-      <!-- 管理员（两级） -->
+      <!-- 身份：管理功能在库里，不在这里（见 docs/概念模型.md §7「两种管理」） -->
       <div class="fx-row fx-col">
         <span>
-          <b>管理员</b>
+          <b>身份</b>
           <small class="muted">
             <template v-if="auth.isOwner">库管理员（完全权限）</template>
-            <template v-else-if="auth.isAdmin">二级管理员（可审核/投稿，不能管库）</template>
+            <template v-else-if="auth.isAdmin">二级管理员（可审核 / 投稿）</template>
             <template v-else>普通用户</template>
           </small>
         </span>
-        <!-- 本机运行时可直接认领库管理员 -->
-        <button
-          v-if="termIsLocal && auth.isLoggedIn && !auth.isOwner"
-          class="btn ghost block"
-          @click="claimOwner"
-        >
-          认领为库管理员（本机）
-        </button>
-        <!-- 库管理员：管理授权密钥 -->
-        <template v-if="auth.isOwner">
-          <div class="fx-terminal">
-            <input v-model.trim="accessKey" class="input" placeholder="授权密钥（留空=自动生成）" />
-            <button class="btn ghost" @click="saveAccessKey">保存</button>
-          </div>
-          <div class="fx-terminal">
-            <button class="btn ghost" @click="genAccessKey">随机生成</button>
-            <button class="btn ghost" @click="loadAccessKey">查看当前</button>
-            <button class="btn ghost" @click="clearAccessKey">清空</button>
-          </div>
-          <small v-if="shownKey" class="muted">当前授权密钥：{{ shownKey }}</small>
-          <small class="muted">把密钥发给他人：其登录后凭它成为二级管理员。</small>
-
-          <!-- 允许的文件格式（可配置，不写死） -->
-          <div class="fx-terminal">
-            <input v-model.trim="formatsInput" class="input" placeholder="允许的格式，逗号分隔（如 png,jpg,pdf）" />
-            <button class="btn ghost" @click="saveFormats">保存格式</button>
-          </div>
-          <small class="muted">当前允许：{{ formatsText }}</small>
-        </template>
+        <small class="muted">
+          审核、补认证、授权密钥、允许格式、学习策略都在<b>库管理界面</b>：点右下角 🛡，或打开下面这个地址。
+        </small>
+        <div class="fx-terminal">
+          <input class="input" :value="`${termBase}/admin`" readonly />
+          <button class="btn ghost" @click="openAdmin">打开</button>
+        </div>
       </div>
 
       <!-- 功能模块开关（最小可行性：可关闭模块） -->
@@ -197,13 +175,11 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { ref } from 'vue';
 import { useFxSettings } from '../composables/useFxSettings.js';
 import { useDevSettings, METEOR_GEARS, DEV_SLIDERS, MODULES } from '../composables/useDevSettings.js';
 import { useTerminal } from '../composables/useTerminal.js';
 import { useAuthStore } from '../stores/auth.js';
-import { useUiStore } from '../stores/ui.js';
-import { api } from '../api/client.js';
 
 defineProps({
   visible: { type: Boolean, default: false },
@@ -240,84 +216,12 @@ function resetTerminal() {
   location.reload();
 }
 
-// ---- 管理员（两级） ----
+// ---- 身份（管理在库管理界面，个人端不再自带管理功能）----
 const auth = useAuthStore();
-const ui = useUiStore();
-const accessKey = ref('');
-const shownKey = ref('');
 
-async function claimOwner() {
-  try {
-    await auth.claimOwner();
-    ui.toast(auth.isOwner ? '已成为库管理员' : '认领失败（只能在本机认领）', auth.isOwner ? 'success' : 'error');
-  } catch (e) {
-    ui.toast(e.message, 'error');
-  }
+function openAdmin() {
+  window.open(`${termBase.value}/admin`, '_blank', 'noopener');
 }
-async function saveAccessKey() {
-  try {
-    const r = await api.accessKeySet({ key: accessKey.value });
-    shownKey.value = r.key || '';
-    ui.toast(r.hasAccessKey ? '授权密钥已保存' : '授权密钥已清空', 'success');
-  } catch (e) {
-    ui.toast(e.message, 'error');
-  }
-}
-async function genAccessKey() {
-  try {
-    const r = await api.accessKeySet({});
-    shownKey.value = r.key || '';
-    accessKey.value = r.key || '';
-    ui.toast('已生成新的授权密钥', 'success');
-  } catch (e) {
-    ui.toast(e.message, 'error');
-  }
-}
-async function loadAccessKey() {
-  try {
-    const r = await api.accessKeyGet();
-    shownKey.value = r.key || '';
-    accessKey.value = r.key || '';
-  } catch (e) {
-    ui.toast(e.message, 'error');
-  }
-}
-async function clearAccessKey() {
-  try {
-    await api.accessKeySet({ action: 'clear' });
-    shownKey.value = '';
-    accessKey.value = '';
-    ui.toast('授权密钥已清空', 'success');
-  } catch (e) {
-    ui.toast(e.message, 'error');
-  }
-}
-
-// ---- 允许的文件格式（可配置） ----
-const formatsInput = ref('');
-const formatsList = ref([]);
-const formatsText = computed(() => formatsList.value.join(' / ') || '（默认）');
-
-async function loadFormats() {
-  try {
-    const { formats } = await api.formatsGet();
-    formatsList.value = formats || [];
-    formatsInput.value = (formats || []).join(',');
-  } catch {
-    /* 忽略 */
-  }
-}
-async function saveFormats() {
-  try {
-    const { formats } = await api.formatsSet(formatsInput.value);
-    formatsList.value = formats || [];
-    formatsInput.value = (formats || []).join(',');
-    ui.toast('文件格式已更新', 'success');
-  } catch (e) {
-    ui.toast(e.message, 'error');
-  }
-}
-loadFormats();
 
 function formatVal(s) {
   const v = dev.settings[s.key];

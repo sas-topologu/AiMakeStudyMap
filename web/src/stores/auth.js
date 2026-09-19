@@ -29,11 +29,6 @@ export const useAuthStore = defineStore('auth', {
       this._apply(token, user);
       this.refreshQuota();
     },
-    // 用管理员密钥开启管理员权限（登录后）
-    async promoteAdmin(adminKey) {
-      await api.promoteAdmin(adminKey);
-      await this.refreshQuota();
-    },
     _apply(token, user) {
       setToken(token);
       this.user = user;
@@ -52,11 +47,6 @@ export const useAuthStore = defineStore('auth', {
       } catch {
         /* 离线/未登录时静默 */
       }
-    },
-    // 本机认领库管理员（本地运行时，或识别到可认领时）
-    async claimOwner() {
-      await api.claimOwner();
-      await this.refreshQuota();
     },
     setQuota(q) {
       this.quota = q;

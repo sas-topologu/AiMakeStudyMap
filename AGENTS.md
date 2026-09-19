@@ -1,14 +1,15 @@
 # 智点星谱 · 项目交接文档（AGENTS.md）
 
 > 本文件供 AI 编码 Agent（DeepSeek Harness / Claude Code / Codex / Copilot 等）在本项目内接手开发时使用。
-> 先读本文件，再读 `docs/工程规划.md`、`docs/维护手册.md`、`docs/知识卡制作规范.md`（制卡必读）。
+> **先读 `docs/概念模型.md`**（术语与设计基准，全项目只有「个人端」与「群体端」两种东西），
+> 再读本文件，然后 `docs/个人端与群体端.md`、`docs/维护手册.md`、`docs/知识卡制作规范.md`（制卡必读）。
 
 ## 1. 项目是什么
 
 公益知识图谱学习平台「智点星谱」：节点是知识卡（一颗星），前置/相关关系连成星图（技能树式闯关学习）。前端 Canvas 星图（自研渲染器），后端 Node/Express/SQLite。
 
-- 内容：`content/cards/*.json`（75 张卡，数理化生+计算机 6 学科，内容版本 v15）
-- 运行：`http://localhost:3000`（前端为构建产物 `web/dist`，由 server 静态托管）
+- 内容：`content/cards/*.json`（数理化生+计算机 6 学科，约 500 张卡；实际数量以目录为准，内容版本见 `npm run scan`）
+- 运行：`http://localhost:3000`（个人端界面为构建产物 `web/dist`，由服务内核托管；**只对本机开放**）
 
 ## 2. 技术栈与目录
 
@@ -30,8 +31,8 @@
 ```bash
 npm start          # 启动服务（后台常驻，端口 3000）
 npm run build      # 构建前端（web/dist）
-npm test -w web    # 前端测试（当前 60）
-npm test -w server # 后端测试（当前 69）
+npm test -w web    # 前端测试
+npm test -w server # 后端测试
 npm run import     # 内容入库（自动 content_version+1）
 npm run scan       # 结构健康检查（环/孤岛/空洞）
 npm run audit      # 规范全量审计（--file xxx 单卡，--list 概览）
@@ -73,9 +74,17 @@ npm start          # 前台验证输出，或后台运行
 
 ## 6. 后端约定
 
-- 四态：`dim`(未开放)/`open`(可闯关)/`passed`(已通关)/`lit`(点亮)；闯关需学习倒计时；practice 模式不计时不落状态
+- 四态：`dim`(未开放)/`open`(可通关)/`passed`(已通关)/`lit`(已点亮)；闯关是否要求学习倒计时、当日上限、跃迁额度
+  都由**学习策略**决定（`services/policyService.js` → `meta.policy_*`，`/api/terminal/policy`，库管理界面可调可关）
+- **成果认证**：`user_node_state.certified`（1 = 库当场见证 / 0 = 离线完成、事后上传）；
+  写入取 `MAX`（**只补不撤**）；**榜单类只收已认证**（速通榜过滤、拓荒者名额 `litCount`）；
+  补认证入口：`GET /api/admin/uncertified` + `POST /api/admin/certify`
+- **离线能力**：题库随 `/sync` 下发到个人端；断网时本地出卷判分（`web/src/utils/localQuiz.js`）、
+  本地成果存 `starmap:progress.v1`（**按数据源分账**），联网后 `POST /api/achievements` 上报（一律接收、只升不降）
 - 服务架构：`app.js` 组装，`db/connection.js` 单例；服务层负责状态变更（不经路由直接改库）
 - API 鉴权：JWT，`middleware/auth.js`；试卷存内存（quizService papers Map），重启即失效
+- **管理只在库里**：库管理界面 `server/public/admin/`（审核 / 补认证 / 授权密钥 / 允许格式 / 学习策略）；
+  个人端界面**不再自带管理页**（见 `docs/概念模型.md` §7）
 
 ## 7. 质量红线
 
