@@ -6,28 +6,43 @@ on:
   workflow_dispatch:
     inputs:
       terminal_url:
-        description: '客户端默认指向的终端地址（留空则用仓库变量 TERMINAL_URL）'
+        description: '客户端默认指向的终端地址（留空则用仓库变量 TERMINAL_URL / 默认线上地址）'
         required: false
         default: ''
 
 jobs:
   apk:
     runs-on: ubuntu-latest
+    env:
+      # Capacitor 8 需要 Android SDK Platform 36
+      ANDROID_PLATFORM: '36'
+      BUILD_TOOLS: '36.0.0'
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
 
       - uses: android-actions/setup-android@v3
 
-      - name: 安装依赖
+      - name: 安装 Android SDK 组件（API 36）并接受许可
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-${ANDROID_PLATFORM}" "build-tools;${BUILD_TOOLS}"
+          echo "=== 已安装组件 ==="
+          sdkmanager --list_installed || true
+          echo "=== 环境 ==="
+          node -v && java -version 2>&1 | head -1
+
+      - name: 安装依赖（跳过 Electron 大文件下载）
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
         run: npm ci
 
       - name: 写入终端地址并构建前端
@@ -52,7 +67,7 @@ jobs:
         run: |
           cd mobile/android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: 上传 APK
         uses: actions/upload-artifact@v4
