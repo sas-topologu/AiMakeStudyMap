@@ -40,9 +40,9 @@ describe('静态托管与 SPA 回退', () => {
     const spa = await agent.get('/share/abc123');
     expect(spa.status).toBe(200);
     expect(spa.text).toContain('假 index.html');
-    const admin = await agent.get('/admin');
-    expect(admin.status).toBe(200);
-    expect(admin.text).toContain('假 index.html');
+    const manage = await agent.get('/manage');
+    expect(manage.status).toBe(200);
+    expect(manage.text).toContain('假 index.html');
 
     // 带 hash 的静态资源 → immutable 长缓存 + 正确内容类型
     const asset = await agent.get('/assets/app-abc123.js');
@@ -59,11 +59,15 @@ describe('静态托管与 SPA 回退', () => {
     expect(api404.text).not.toContain('假 index.html');
   });
 
-  it('dist 不存在（staticDir=null）时根路径返回构建提示', async () => {
+  it('dist 不存在（staticDir=null）时根路径返回终端说明页', async () => {
     const agent = request(createApp(db, { secret: 's', pioneerTimer: false, staticDir: null }));
     const res = await agent.get('/');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('npm run build');
+    expect(res.text).toContain('终端');
+    // 管理界面始终可用（不依赖前端构建）
+    const admin = await agent.get('/admin/');
+    expect(admin.status).toBe(200);
+    expect(admin.text).toContain('终端管理');
   });
 
   it('下载通道限制：非白名单格式一律 404（不当作任意文件分发通道）', async () => {
@@ -85,5 +89,29 @@ describe('静态托管与 SPA 回退', () => {
     const png = await agent.get('/logo.png');
     expect(png.status).toBe(200);
     expect(png.headers['x-content-type-options']).toBe('nosniff');
+  });
+
+  it('服务端改造：学习端网页只对本机开放；公网只给说明页；/admin 管理界面公开', async () => {
+    const agent = request(createApp(db, { secret: 's', pioneerTimer: false, staticDir: distDir }));
+
+    // 本机（loopback，supertest 直连）→ 正常提供学习端
+    const local = await agent.get('/');
+    expect(local.status).toBe(200);
+    expect(local.text).toContain('假 index.html');
+
+    // 公网（模拟经代理的远程 IP）→ 只给终端说明页，不给学习端
+    const pub = await agent.get('/').set('X-Forwarded-For', '203.0.113.9');
+    expect(pub.status).toBe(200);
+    expect(pub.text).toContain('终端');
+    expect(pub.text).not.toContain('假 index.html');
+
+    // 公网访问学习端路由 → 404（不提供学习端网页）
+    const blocked = await agent.get('/map').set('X-Forwarded-For', '203.0.113.9');
+    expect(blocked.status).toBe(404);
+
+    // 管理界面公开可访问
+    const admin = await agent.get('/admin/');
+    expect(admin.status).toBe(200);
+    expect(admin.text).toContain('终端管理');
   });
 });

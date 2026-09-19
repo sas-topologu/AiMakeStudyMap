@@ -41,16 +41,46 @@ const STATIC_EXTS = new Set([
   '.gif', '.webp', '.ico', '.woff', '.woff2', '.ttf', '.otf', '.eot', '.txt', '.webmanifest',
 ]);
 
-// 生产静态托管：下载格式限制 + SPA（history 路由）回退 + 缓存策略
-// - 非白名单扩展名 → 404（下载通道受限）
-// - assets/ 下为带内容 hash 的构建产物 → immutable 长缓存
-// - index.html → no-cache（保证发版即生效）
-// - 除 /api 前缀外的 GET（且接受 html）一律回退到 index.html
+// 管理型界面（终端自有）：静态托管 server/public/admin，公开可访问（操作需管理员登录）。
+const ADMIN_DIR = path.resolve(__dirname, '../public/admin');
+
+// 公网访问根路径时展示的说明页（服务端不再对外提供学习端网页）
+const PUBLIC_INFO_HTML = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>智点星谱 · 终端</title>
+<style>body{margin:0;background:#070b16;color:#dfe6ff;font:15px/1.8 system-ui,"Microsoft YaHei",sans-serif;
+display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}
+.card{max-width:560px;border:1px solid #24304d;border-radius:14px;padding:26px 30px;background:#0c1426}
+h1{font-size:19px;margin:0 0 12px}p{margin:8px 0;color:#9fb0d8}code{background:#131d33;padding:2px 6px;border-radius:5px}
+a{color:#7aa2ff}</style></head><body><div class="card">
+<h1>智点星谱 · 终端（服务端）</h1>
+<p>本终端只提供 <b>数据接口</b> 与 <b>管理界面</b>，不再对外提供学习端网页。</p>
+<p>学习端请使用 <b>PC 客户端</b> 或 <b>手机客户端</b>（在其"设置 → 终端"里指向本地址）。</p>
+<p>管理界面：<a href="/admin">/admin</a></p>
+</div></body></html>`;
+
+// 判断请求是否来自本机（本机 = 运行终端的这台机器上跑的客户端，如 PC 客户端内置的终端）
+function isLoopbackReq(req) {
+  const ip = req.ip || req.socket?.remoteAddress || '';
+  return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+}
+
+// 静态托管：下载格式限制 + SPA（history 路由）回退 + 缓存策略
+// 【服务端改造】学习端网页**只对本机开放**（供 PC 客户端内置终端使用）；
+// 公网访问只给管理界面 /admin 与说明页 —— 服务端不再对外提供学习端网页。
 function mountStatic(app, distDir) {
   const indexHtml = path.join(distDir, 'index.html');
+
   app.use((req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next();
-    if (req.path.startsWith('/api')) return next();
+    if (req.path.startsWith('/api') || req.path.startsWith('/admin')) return next();
+    if (!isLoopbackReq(req)) {
+      // 非本机：不提供学习端网页；根路径给说明页，其余 404
+      if (req.path === '/' || req.path === '') {
+        res.setHeader('Cache-Control', 'no-cache');
+        return res.type('html').send(PUBLIC_INFO_HTML);
+      }
+      return next(errors.notFound('服务端仅提供接口与管理界面，学习端请使用客户端'));
+    }
     const ext = path.extname(req.path).toLowerCase();
     if (ext && !STATIC_EXTS.has(ext)) return next(errors.notFound('不支持的下载格式'));
     return next();
@@ -71,6 +101,7 @@ function mountStatic(app, distDir) {
   app.use((req, res, next) => {
     if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
     if (!req.accepts('html')) return next();
+    if (!isLoopbackReq(req)) return next(); // 公网不回退学习端
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.sendFile(indexHtml);
@@ -151,14 +182,25 @@ export function createApp(
   app.use('/api', terminalRouter(ctx));
   app.use('/api', uploadRouter(ctx));
 
-  // 静态托管（在 API 路由之后、错误处理之前挂载）
+  // 管理型界面（终端自有）：始终挂载，不依赖前端是否构建过
+  app.use(
+    '/admin',
+    express.static(ADMIN_DIR, {
+      index: 'index.html',
+      setHeaders(res) {
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+      },
+    })
+  );
+
+  // 学习端静态资源：仅当构建产物存在时挂载（且只对本机开放，见 mountStatic 内守卫）
   if (staticDir && fs.existsSync(staticDir)) {
     mountStatic(app, staticDir);
   } else {
     app.get('/', (req, res) => {
-      res
-        .type('text/plain; charset=utf-8')
-        .send('智点星谱：前端尚未构建，请先运行 npm run build（产物目录 web/dist 不存在）');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.type('html').send(PUBLIC_INFO_HTML);
     });
   }
 

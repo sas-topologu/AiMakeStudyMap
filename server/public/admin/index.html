@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>智点星谱 · 终端管理</title>
+    <link rel="stylesheet" href="/admin/admin.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <b>智点星谱 · 终端管理</b>
+      <span id="who" class="muted"></span>
+      <span class="spacer"></span>
+      <button id="btnRefresh" class="btn ghost">刷新</button>
+      <button id="btnLogout" class="btn ghost" hidden>退出</button>
+    </header>
+
+    <!-- 未登录 -->
+    <section id="login" class="panel card" hidden>
+      <h2>管理员登录</h2>
+      <input id="u" class="input" placeholder="用户名" autocomplete="username" />
+      <input id="p" class="input" type="password" placeholder="密码" autocomplete="current-password" />
+      <p id="loginErr" class="err"></p>
+      <button id="btnLogin" class="btn primary">登录</button>
+      <p class="muted small">
+        终端管理员：在终端本机认领；二级管理员：由终端管理员发放「授权密钥」，登录后提交即可获得。
+      </p>
+    </section>
+
+    <main id="app" hidden>
+      <section class="panel card">
+        <h2>终端概览</h2>
+        <div id="info" class="kv"></div>
+        <div class="row" id="ownerActions" hidden>
+          <button id="btnClaim" class="btn ghost">认领为终端管理员（仅终端本机可认领）</button>
+        </div>
+      </section>
+
+      <section class="panel card">
+        <h2>待处理任务 <span id="taskCount" class="muted small"></span></h2>
+        <div id="tasks" class="list"></div>
+      </section>
+
+      <section class="panel card">
+        <h2>投稿队列</h2>
+        <div id="submissions" class="list"></div>
+      </section>
+
+      <section class="panel card">
+        <h2>举报 / 勘误</h2>
+        <div id="reports" class="list"></div>
+        <div id="corrections" class="list"></div>
+      </section>
+
+      <section class="panel card" id="settingsCard" hidden>
+        <h2>设置（仅终端管理员）</h2>
+        <div class="row">
+          <input id="accessKey" class="input" placeholder="授权密钥（留空=自动生成）" />
+          <button id="btnKeySave" class="btn ghost">保存</button>
+          <button id="btnKeyGen" class="btn ghost">随机生成</button>
+          <button id="btnKeyClear" class="btn ghost">清空</button>
+        </div>
+        <div class="row">
+          <input id="formats" class="input" placeholder="允许的文件格式，逗号分隔" />
+          <button id="btnFmtSave" class="btn ghost">保存格式</button>
+        </div>
+        <p id="settingsMsg" class="muted small"></p>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" hidden></div>
+    <script src="/admin/admin.js"></script>
+  </body>
+</html>
