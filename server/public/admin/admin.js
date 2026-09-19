@@ -244,6 +244,38 @@ async function reviewCorrection(id, action) {
   }
 }
 
+/* ---------------- 补认证（抽查，只补不撤） ---------------- */
+
+const STATE_CN = { dim: '暗淡', open: '开放', passed: '通关', lit: '点亮' };
+
+async function loadUncertified() {
+  const username = $('certUser').value.trim();
+  const { items } = await req(`/admin/uncertified${username ? `?username=${encodeURIComponent(username)}` : ''}`);
+  $('uncertified').innerHTML = items.length
+    ? items
+        .map(
+          (it) => `<div class="item">
+        <span class="tag">${STATE_CN[it.state] || esc(it.state)}</span>
+        <span class="grow">${esc(it.username)} · ${esc(it.nodeTitle)} <span class="muted small">(${esc(it.nodeId)})</span></span>
+        <span class="muted small">${shortTime(it.updatedAt)}</span>
+        <button class="btn ghost" data-certify="${it.userId}:${esc(it.nodeId)}">补认证</button>
+      </div>`
+        )
+        .join('')
+    : '<p class="muted small">没有待补认证的成果（未认证成果一律照常展示、不降权，这里只是抽查入口）</p>';
+}
+
+async function certify(key) {
+  const [userId, nodeId] = [Number(key.split(':')[0]), key.slice(key.indexOf(':') + 1)];
+  try {
+    const r = await req('/admin/certify', { method: 'POST', body: { userId, nodeId } });
+    toast(r.certified ? '已补认证' : '这条成果无需补认证（已认证或不存在）');
+    await loadUncertified();
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
 /* ---------------- 设置（库管理员） ---------------- */
 
 async function refreshSettings() {
@@ -295,6 +327,7 @@ async function refreshAll() {
   if (!state.user) return;
   try {
     await Promise.all([refreshInfo(), refreshTasks(), refreshManage(), refreshReview()]);
+    await loadUncertified();
     await refreshSettings();
   } catch (e) {
     toast(e.message);
@@ -325,6 +358,11 @@ function bind() {
     const no = e.target.dataset?.correctionNo;
     if (ok) reviewCorrection(ok, 'approve');
     if (no) reviewCorrection(no, 'reject');
+  });
+  $('btnCertQuery').onclick = () => loadUncertified().catch((e) => toast(e.message));
+  $('uncertified').addEventListener('click', (e) => {
+    const key = e.target.dataset?.certify;
+    if (key) certify(key);
   });
   $('btnClaim').onclick = async () => {
     try {

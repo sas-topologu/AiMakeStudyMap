@@ -50,6 +50,7 @@ function makeCard(id, { prerequisites = [] } = {}) {
 describe('成果认证（只标已认证；榜单只收已认证）', () => {
   let tmp, db, agent;
   const now = () => new Date().toISOString();
+  const auth = (t) => ({ Authorization: `Bearer ${t}` });
 
   async function registerUser(username) {
     const res = await agent.post('/api/auth/register').send({ username, password: 'Secret12' });
@@ -150,5 +151,41 @@ describe('成果认证（只标已认证；榜单只收已认证）', () => {
     // 再写入未认证不会把它降级（只有补章，没有撤章）
     setState(db, uid, 't.a', 'lit', { certified: false });
     expect(certifiedOf('离线乙', 't.a')).toBe(1);
+  });
+
+  it('补认证入口：管理员可查询并补章，只补不撤，普通用户无权', async () => {
+    const owner = await registerUser('库主人');
+    await registerUser('离线乙');
+    const offlineUid = userId('离线乙');
+    setState(db, offlineUid, 't.a', 'lit', { passSeconds: 100, litAt: now(), certified: false });
+
+    // 未认证 → 不上榜
+    expect((await agent.get('/api/nodes/t.a/speedrun')).body.ranks).toHaveLength(0);
+
+    // 抽查：按用户名查到这条
+    const q = await agent.get('/api/admin/uncertified?username=离线乙').set(auth(owner));
+    expect(q.status).toBe(200);
+    expect(q.body.items).toHaveLength(1);
+    expect(q.body.items[0]).toMatchObject({ nodeId: 't.a', state: 'lit', username: '离线乙' });
+
+    // 补章 → 立即可上榜
+    const c = await agent.post('/api/admin/certify').set(auth(owner)).send({ userId: offlineUid, nodeId: 't.a' });
+    expect(c.body.certified).toBe(1);
+    expect(certifiedOf('离线乙', 't.a')).toBe(1);
+    expect((await agent.get('/api/nodes/t.a/speedrun')).body.ranks).toHaveLength(1);
+
+    // 重复补章：不重复计数，也不会出错
+    const again = await agent.post('/api/admin/certify').set(auth(owner)).send({ userId: offlineUid, nodeId: 't.a' });
+    expect(again.body.certified).toBe(0);
+    expect(again.body.unchanged).toBe(1);
+
+    // 补完就查不到了
+    expect((await agent.get('/api/admin/uncertified?username=离线乙').set(auth(owner))).body.items).toHaveLength(0);
+
+    // 普通用户不能补认证
+    const normal = await registerUser('普通丙');
+    const forbidden = await agent.post('/api/admin/certify').set(auth(normal)).send({ userId: offlineUid, nodeId: 't.a' });
+    expect(forbidden.status).toBe(403);
+    expect((await agent.get('/api/admin/uncertified').set(auth(normal))).status).toBe(403);
   });
 });

@@ -20,6 +20,15 @@ const changelogSchema = z.object({
   summary: z.string().min(1).max(200),
   detail: z.string().max(5000).optional(),
 });
+// 补认证：单个（userId+nodeId）或批量（items）
+const certifySchema = z.object({
+  userId: z.number().int().positive().optional(),
+  nodeId: z.string().min(1).optional(),
+  items: z
+    .array(z.object({ userId: z.number().int().positive(), nodeId: z.string().min(1) }))
+    .max(100)
+    .optional(),
+});
 
 export function creationsRouter({ db, secret }) {
   const router = Router();
@@ -142,6 +151,59 @@ export function adminRouter({ db, secret }) {
        ON CONFLICT(version) DO UPDATE SET summary = excluded.summary, detail = excluded.detail`
     ).run(version, summary, detail ?? null, new Date().toISOString());
     res.json({ ok: true, version });
+  });
+
+  // ---- 补认证（只补不撤）----
+  // 离线完成的成果记未认证；库可以在联网时抽查、核验后手工补盖认证章。
+  // 反过来永远降不了级 —— 见 docs/概念模型.md §4「监管只有补章，没有撤章」。
+
+  // 待补认证的成果：给用户名就查该用户，留空则给最近的一批（供抽查）
+  router.get('/admin/uncertified', admin, (req, res) => {
+    const username = String(req.query.username ?? '').trim();
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+    const base = `
+      SELECT s.user_id, u.username, s.node_id, n.title AS node_title, s.state,
+             s.pass_seconds, s.lit_at, s.updated_at
+      FROM user_node_state s
+      JOIN users u ON u.id = s.user_id
+      LEFT JOIN nodes n ON n.id = s.node_id
+      WHERE s.certified = 0`;
+    const rows = username
+      ? db.prepare(`${base} AND u.username = ? ORDER BY s.updated_at DESC LIMIT ?`).all(username, limit)
+      : db.prepare(`${base} ORDER BY s.updated_at DESC LIMIT ?`).all(limit);
+    res.json({
+      items: rows.map((r) => ({
+        userId: r.user_id,
+        username: r.username,
+        nodeId: r.node_id,
+        nodeTitle: r.node_title ?? r.node_id,
+        state: r.state,
+        passSeconds: r.pass_seconds,
+        litAt: r.lit_at,
+        updatedAt: r.updated_at,
+      })),
+    });
+  });
+
+  // 补盖认证章（单个或批量）
+  router.post('/admin/certify', admin, (req, res) => {
+    const { userId, nodeId, items } = parseBody(certifySchema, req.body ?? {});
+    const list = items?.length ? items : userId && nodeId ? [{ userId, nodeId }] : [];
+    if (list.length === 0) throw errors.validation('请提供 userId + nodeId，或 items 列表');
+
+    const stmt = db.prepare(
+      "UPDATE user_node_state SET certified = 1 WHERE user_id = ? AND node_id = ? AND certified = 0"
+    );
+    let certified = 0;
+    const missing = [];
+    db.transaction(() => {
+      for (const it of list) {
+        const r = stmt.run(it.userId, it.nodeId);
+        if (r.changes > 0) certified += 1;
+        else missing.push(it.nodeId);
+      }
+    })();
+    res.json({ ok: true, certified, unchanged: missing.length, unchangedNodes: missing });
   });
 
   return router;

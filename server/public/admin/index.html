@@ -58,6 +58,18 @@
         <div id="submissions" class="list"></div>
       </section>
 
+      <section class="panel card">
+        <h2>补认证（抽查）</h2>
+        <p class="muted small">
+          离线完成的成果记为「未认证」。库可以抽查核验后手工补盖认证章 —— <b>只补不撤</b>，补上就不会被降级。
+        </p>
+        <div class="row">
+          <input id="certUser" class="input" placeholder="用户名（留空 = 最近未认证的 50 条）" />
+          <button id="btnCertQuery" class="btn ghost">查询</button>
+        </div>
+        <div id="uncertified" class="list"></div>
+      </section>
+
       <section class="panel card" id="settingsCard" hidden>
         <h2>设置（仅库管理员）</h2>
         <div class="row">
