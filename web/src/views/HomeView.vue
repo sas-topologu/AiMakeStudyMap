@@ -149,6 +149,6 @@ function onOpen(id) {
 
 onMounted(() => {
   boot();
-  timer.restore(); // 刷新页面后恢复进行中的倒计时
+  if (auth.isLoggedIn) timer.restore(); // 游客无计时接口权限，跳过（避免无谓 401）
 });
 </script>

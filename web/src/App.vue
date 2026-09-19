@@ -9,6 +9,7 @@
       <button class="btn ghost" @click="retryNow">立即重试</button>
     </template>
   </div>
+  <TopBar v-if="!isLoginPage" />
   <NavBanner v-if="!isLoginPage" />
   <router-view />
   <Fab v-if="!isLoginPage" />
@@ -16,12 +17,13 @@
 </template>
 
 <script setup>
-// 全局风险提示：离线（终端不可达，已用本地缓存）与终端身份变化（可能不是原来的终端）。
+// 全局：右上角账号栏 + 风险提示（离线 / 终端身份变化）
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import Fab from './components/Fab.vue';
 import Toast from './components/Toast.vue';
 import NavBanner from './components/NavBanner.vue';
+import TopBar from './components/TopBar.vue';
 import {
   isOffline,
   onOfflineChange,
@@ -64,7 +66,6 @@ async function checkIdentity() {
 }
 
 function acceptNewTerminal() {
-  // 用户确认"仍要信任" → 重新固定指纹
   if (identity.value?.actual) pinFingerprint(getTerminalBase(), identity.value.actual);
   else forgetFingerprint(getTerminalBase());
   identity.value = null;

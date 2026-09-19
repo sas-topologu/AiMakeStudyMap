@@ -6,12 +6,28 @@ import { reactive, ref, computed } from 'vue';
 
 const FX_KEY = 'starmap:fx.v2';
 
-function load() {
+// 移动端/小屏：默认关闭星光粒子（性能优先；用户可在设置里手动打开）
+function mobileLike() {
   try {
-    return { transition: true, particleSpeed: 2, ...JSON.parse(localStorage.getItem(FX_KEY) || '{}') };
+    const coarse = window.matchMedia?.('(pointer: coarse)')?.matches;
+    const small = Math.min(window.innerWidth || 9999, window.innerHeight || 9999) <= 820;
+    return Boolean(coarse || small);
   } catch {
-    return { transition: true, particleSpeed: 2 };
+    return false;
   }
+}
+
+function load() {
+  const saved = localStorage.getItem(FX_KEY);
+  if (saved) {
+    try {
+      return { transition: true, particleSpeed: 2, ...JSON.parse(saved) };
+    } catch {
+      /* 落回默认 */
+    }
+  }
+  // 首次使用（无保存）：移动端默认关粒子，桌面端默认「快」
+  return { transition: true, particleSpeed: mobileLike() ? 0 : 2 };
 }
 
 const settings = reactive(load());

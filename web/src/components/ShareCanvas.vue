@@ -18,6 +18,7 @@
 <script setup>
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { ShareRenderer } from '../starmap/shareRenderer.js';
+import { cappedDpr } from '../starmap/canvasBase.js';
 import { layoutConstellation } from '../starmap/macroLayout.js';
 
 const props = defineProps({
@@ -65,7 +66,7 @@ function fitView() {
 
 function resize() {
   if (!wrap.value || !renderer) return;
-  renderer.resize(wrap.value.clientWidth, wrap.value.clientHeight, window.devicePixelRatio || 1);
+  renderer.resize(wrap.value.clientWidth, wrap.value.clientHeight, cappedDpr());
   rebuild({ fit: true });
 }
 

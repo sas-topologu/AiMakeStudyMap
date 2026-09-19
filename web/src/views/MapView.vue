@@ -70,6 +70,7 @@ import { useNavStore } from '../stores/navigation.js';
 import { useFxSettings } from '../composables/useFxSettings.js';
 import { useDevSettings } from '../composables/useDevSettings.js';
 import { MacroRenderer, LOD, worldWeights } from '../starmap/macroRenderer.js';
+import { cappedDpr, frameIntervalMs } from '../starmap/canvasBase.js';
 import { layoutWorld, makeSyntheticGraph } from '../starmap/macroLayout.js';
 
 const STATE_LABEL = { dim: '暗淡', open: '开放', passed: '通关', lit: '点亮' };
@@ -100,6 +101,7 @@ let allEdges = [];
 let minScale = 0.02; // 全景 fit 后允许的最小缩放（缩过头自动弹回）
 let anim = null; // 相机动画 rAF
 let twinkleRaf = null; // 呼吸闪烁循环（低功耗：仅星系/星团/中档，页面可见、非 reduced-motion）
+let lastTwinkle = 0; // 上一次渲染时间（节流用）
 
 // ---- 呼吸闪烁：星系星云 / 星团随时间明暗变化（静止也有生命力）----
 // 星系层与星团/中档全开；节点档内容多暂停（LOD 由循环内按权重判断）
@@ -109,8 +111,13 @@ function startTwinkle() {
   const loop = () => {
     twinkleRaf = null;
     if (document.hidden) return; // 页面隐藏即停
-    const w = worldWeights(renderer.camera.scale);
-    if (w.galaxy > 0.02 || w.cluster > 0.02 || w.mid > 0.02) renderer.render(); // 节点档跳过
+    const now = performance.now();
+    if (now - lastTwinkle >= frameIntervalMs()) {
+      // 节流渲染：移动端约 20fps、桌面约 30fps（降低 CPU/GPU 占用）
+      lastTwinkle = now;
+      const w = worldWeights(renderer.camera.scale);
+      if (w.galaxy > 0.02 || w.cluster > 0.02 || w.mid > 0.02) renderer.render(); // 节点档跳过
+    }
     twinkleRaf = requestAnimationFrame(loop);
   };
   twinkleRaf = requestAnimationFrame(loop);
@@ -408,7 +415,7 @@ function onWheel(e) {
 
 function resize() {
   if (!wrap.value || !renderer) return;
-  renderer.resize(wrap.value.clientWidth, wrap.value.clientHeight, window.devicePixelRatio || 1);
+  renderer.resize(wrap.value.clientWidth, wrap.value.clientHeight, cappedDpr());
   renderer.render();
 }
 function installStressHook() {

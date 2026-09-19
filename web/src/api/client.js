@@ -170,7 +170,8 @@ async function request(path, { method = 'GET', body } = {}) {
 
   if (!res.ok) {
     const err = data?.error ?? {};
-    if (res.status === 401) {
+    // 仅当原本有登录态时才视为"登录失效"并登出；游客（无 token）收到 401 不应被弹去登录页
+    if (res.status === 401 && token) {
       clearToken();
       onUnauthorized?.();
     }

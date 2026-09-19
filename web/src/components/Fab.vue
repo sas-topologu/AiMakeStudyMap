@@ -6,11 +6,11 @@
       <template v-if="open">
         <button key="search" class="fab-item" title="搜索 / 跃迁" @click="showSearch = true">🔍</button>
         <button key="map" class="fab-item" title="大地图（宏观视图）" @click="goMap">🌌</button>
-        <button v-if="dev.enabled('share')" key="share" class="fab-item" title="分享星图" @click="goShare">🔗</button>
+        <button v-if="dev.enabled('share') && auth.isLoggedIn" key="share" class="fab-item" title="分享星图" @click="goShare">🔗</button>
         <button v-if="auth.isAdmin" key="admin" class="fab-item" title="审核队列" @click="goAdmin">🛡</button>
         <button v-if="auth.isAdmin" key="manage" class="fab-item" title="管理面板（抽查留档）" @click="goManage">🗂</button>
         <button key="changelog" class="fab-item" title="关于 / 更新日志" @click="goChangelog">📜</button>
-        <button key="progress" class="fab-item" title="我的进度" @click="showProgress = true">📊</button>
+        <button v-if="auth.isLoggedIn" key="progress" class="fab-item" title="我的进度" @click="showProgress = true">📊</button>
         <button
           v-if="dev.enabled('navigation')"
           key="hot"
@@ -21,12 +21,12 @@
         >
           🔥
         </button>
-        <button v-if="dev.enabled('timer')" key="timer" class="fab-item" title="计时状态" @click="onTimer">
+        <button v-if="dev.enabled('timer') && auth.isLoggedIn" key="timer" class="fab-item" title="计时状态" @click="onTimer">
           ⏱
           <span v-if="timer.active" class="fab-badge">{{ timer.remainingText }}</span>
         </button>
         <button key="fx" class="fab-item" title="动效设置" @click="showFx = true">⚙</button>
-        <button key="logout" class="fab-item danger" title="退出登录" @click="logout">⏻</button>
+        <button v-if="auth.isLoggedIn" key="logout" class="fab-item danger" title="退出登录" @click="logout">⏻</button>
       </template>
     </transition-group>
     <button class="fab-main" :title="open ? '收起' : '功能'" @click="open = !open">
@@ -58,7 +58,7 @@ const timer = useTimerStore();
 const ui = useUiStore();
 const nav = useNavStore();
 const router = useRouter();
-const feat = useDevSettings().features;
+const dev = useDevSettings();
 
 const open = ref(false);
 const showSearch = ref(false);

@@ -14,6 +14,29 @@ export const CRED_STROKE = {
   disputed: '#fbbf24',
 };
 
+// 是否移动端（触摸优先 / 小屏）——用于性能降级
+export function isMobileLike() {
+  try {
+    const coarse = window.matchMedia?.('(pointer: coarse)')?.matches;
+    const small = Math.min(window.innerWidth || 9999, window.innerHeight || 9999) <= 820;
+    return Boolean(coarse || small);
+  } catch {
+    return false;
+  }
+}
+
+// 画布像素比上限：手机常见 3x，画布面积是 2x 的 2.25 倍，是卡顿主因；
+// 限制到 1.5（移动）/ 2（桌面）可显著降低填充压力，肉眼几乎无差别。
+export function cappedDpr() {
+  const raw = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+  return Math.min(raw, isMobileLike() ? 1.5 : 2);
+}
+
+// 动画帧间隔（毫秒）：移动端 20fps、桌面 30fps，控制 CPU/GPU 占用
+export function frameIntervalMs() {
+  return isMobileLike() ? 50 : 33;
+}
+
 // 四角星路径（星空星星样貌：上下左右四个尖角，内凹在 k·r 处）
 export function star4Path(ctx, x, y, r, k = 0.32) {
   ctx.moveTo(x, y - r);
@@ -132,7 +155,9 @@ export class CanvasStage {
 
   _makeStars() {
     // 幂律大小分层：85% 暗小星 / 12% 中星 / 3% 亮大星（星空层次感）；每颗星独立闪烁相位与周期
-    this.stars = Array.from({ length: 240 }, () => {
+    // 移动端减少背景星数量（性能优先）
+    const COUNT = isMobileLike() ? 120 : 240;
+    this.stars = Array.from({ length: COUNT }, () => {
       const tier = Math.random();
       const r =
         tier < 0.85

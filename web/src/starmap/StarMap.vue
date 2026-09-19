@@ -28,6 +28,7 @@ import { StarMapRenderer } from './renderer.js';
 import { computeLayout } from './layout.js';
 import { planTransition, SpringSim, TRANSITION } from './transition.js';
 import { ParticleSystem } from './particles.js';
+import { cappedDpr, frameIntervalMs } from './canvasBase.js';
 import { vectorizeEmblem } from './emblemVector.js';
 import { pickEmblemOffsets } from './emblemOffsets.js';
 import { useFxSettings } from '../composables/useFxSettings.js';
@@ -60,7 +61,7 @@ const wrap = ref(null);
 const cv = ref(null);
 let renderer = null;
 let ro = null;
-let dpr = window.devicePixelRatio || 1;
+let dpr = cappedDpr();
 
 const hoverId = ref(null);
 const tip = ref({ x: 0, y: 0 });
@@ -251,7 +252,7 @@ function stopTransition({ commit = true } = {}) {
 
 function resize() {
   if (!wrap.value || !renderer) return;
-  dpr = window.devicePixelRatio || 1;
+  dpr = cappedDpr();
   renderer.resize(wrap.value.clientWidth, wrap.value.clientHeight, dpr);
   rebuild({ fit: true });
 }
@@ -366,7 +367,7 @@ function meteorTick(now) {
     if (renderer) renderer.render();
     return;
   }
-  if (now - meteorLast >= 33) {
+  if (now - meteorLast >= frameIntervalMs()) {
     const dt = (now - meteorLast) / 1000;
     meteorLast = now;
     renderer.tickMeteors(dt);

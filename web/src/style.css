@@ -1462,6 +1462,53 @@ code {
   display: block;
 }
 
+/* ---- 右上角账号栏 ---- */
+.topbar {
+  position: fixed;
+  top: 10px;
+  right: 12px;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(10, 16, 32, 0.62);
+  border: 1px solid var(--panel-border);
+  backdrop-filter: blur(6px);
+}
+
+.topbar-user {
+  font-size: 13px;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 40vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-badge {
+  font-size: 10px;
+  font-style: normal;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  color: var(--muted);
+}
+
+.topbar-badge.owner {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.topbar-btn {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
 /* ---- 全局风险提示（离线 / 终端身份变化） ---- */
 .risk-banner {
   position: sticky;
