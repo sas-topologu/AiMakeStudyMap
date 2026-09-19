@@ -6,7 +6,7 @@
 //   星团（GALAXY~CLUSTER）：网格聚合星团——视口内节点分桶，桶绘发光星团（亮度∝节点数），
 //                          桶间有同学科 prerequisite 边则绘星座连线，星团上标聚合数
 //   中档（CLUSTER~NODE）：离散节点小点（无标题）+ 同学科 prerequisite 主干连线
-//   节点（scale > NODE）：完整离散节点网络——四态亮度+可信度描边+标题，可点击；
+//   节点（scale > NODE）：完整离散节点网络——四态亮度+内容状态描边+标题，可点击；
 //                          连线按学习状态分档（仿中心视图技能树模式）+ hover 聚焦；
 //                          相关线每节点最多 3 条；跨学科边淡化为细虚线（不横穿全图）
 // 相邻档位 ±FADE 区间内两档叠加淡入淡出，平滑切换。
@@ -517,7 +517,7 @@ export class MacroRenderer extends CanvasStage {
       ctx.restore();
     }
 
-    // 节点（四态 + 可信度描边）
+    // 节点（四态 + 内容状态描边）
     const visible = this._visibleNodes(rect);
     for (const it of visible) {
       const node = this.data.nodesById[it.id];

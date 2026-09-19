@@ -210,8 +210,8 @@ export class CanvasStage {
     ctx.translate(-camera.x, -camera.y);
   }
 
-  // 星点：四态亮度 + 光晕 + lit 外环 + 可信度描边（verified 绿 / disputed 黄）
-  // 主体为四角星形（星空星星样貌），光晕/外环/可信度描边保留圆形光环
+  // 星点：四态亮度 + 光晕 + lit 外环 + 内容状态描边（verified 绿 / disputed 黄）
+  // 主体为四角星形（星空星星样貌），光晕/外环/内容状态描边保留圆形光环
   drawStarNode(node, x, y, r, { hover = false, center = false, alphaScale = 1 } = {}) {
     const { ctx } = this;
     const st = STATE_STYLE[node.state] ?? STATE_STYLE.dim;

@@ -9,7 +9,7 @@
         <div v-if="card" class="node-meta">
           <span class="badge">{{ card.subject }}</span>
           <span class="badge stars" :title="`难度 ${card.difficulty}`">{{ stars }}</span>
-          <span class="badge" :class="credClass">{{ credLabel }}</span>
+          <span class="badge" :class="credClass" title="内容状态：评价知识卡内容本身，与个人成果无关">{{ credLabel }}</span>
           <span class="badge state" :class="state">当前：{{ stateLabel }}</span>
         </div>
       </div>
