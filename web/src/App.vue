@@ -25,6 +25,7 @@ import Toast from './components/Toast.vue';
 import NavBanner from './components/NavBanner.vue';
 import TopBar from './components/TopBar.vue';
 import { usePolicyStore } from './stores/policy.js';
+import { useLocalProgressStore } from './stores/localProgress.js';
 import {
   isOffline,
   onOfflineChange,
@@ -86,10 +87,14 @@ function retryNow() {
 onMounted(() => {
   stopOffline = onOfflineChange((v) => {
     offline.value = v;
+    // 恢复联网：把离线完成的成果上报给库（库一律接收，不盖认证章）
+    if (!v) useLocalProgressStore().sync().catch(() => {});
   });
   if (!isLoginPage.value) checkIdentity();
   // 学习策略（计时/跃迁额度开关）由所在的库提供，拉一次即可
   usePolicyStore().load();
+  // 启动时补报一次离线成果
+  useLocalProgressStore().sync().catch(() => {});
 });
 
 onBeforeUnmount(() => {

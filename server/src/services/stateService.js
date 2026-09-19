@@ -5,6 +5,9 @@ import { errors } from '../errors.js';
 
 const LEVEL = { dim: 0, open: 1, passed: 2, lit: 3 };
 
+// 状态层级（供"只升不降"这类比较使用）
+export const STATE_LEVEL = LEVEL;
+
 // 显式存储的状态（无记录返回 null）
 export function storedState(db, userId, nodeId) {
   const row = db

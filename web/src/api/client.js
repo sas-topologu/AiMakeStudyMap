@@ -213,6 +213,8 @@ export const api = {
     request(`/nodes/${encodeURIComponent(nodeId)}/challenge/start`, { method: 'POST', body: { mode } }),
   submitPaper: (paperId, answers) =>
     request(`/papers/${encodeURIComponent(paperId)}/submit`, { method: 'POST', body: { answers } }),
+  // 成果上报：离线完成的成果联网后上传（库一律接收，不盖认证章）
+  achievementsUpload: (items) => request('/achievements', { method: 'POST', body: { items } }),
   // 版本同步
   metaVersion: () => request('/meta/version'),
   sync: (since) => request(`/sync?since=${since}`),

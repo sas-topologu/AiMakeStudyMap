@@ -143,11 +143,13 @@ export const useStarmapStore = defineStore('starmap', {
     },
 
     // 详情页读取的卡片写入缓存（供离线/同步复用）
+    // 详情接口不下发题库：缓存里已有的题库要保留，否则会把离线能力覆盖掉
     cacheCard(card) {
-      if (card?.id) {
-        this.cache.cards[card.id] = card;
-        this._saveCache();
-      }
+      if (!card?.id) return;
+      const prev = this.cache.cards[card.id];
+      this.cache.cards[card.id] =
+        prev?.questionBank && !card.questionBank ? { ...card, questionBank: prev.questionBank } : card;
+      this._saveCache();
     },
 
     // 完整卡片（粒子徽章等用）：缓存优先，miss 走详情接口

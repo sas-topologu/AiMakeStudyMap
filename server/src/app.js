@@ -25,6 +25,7 @@ import { aiTasksRouter } from './routes/aiTasks.js';
 import { reportsRouter } from './routes/reports.js';
 import { terminalRouter } from './routes/terminal.js';
 import { uploadRouter } from './routes/upload.js';
+import { achievementsRouter } from './routes/achievements.js';
 import { promotePioneers } from './services/pioneerService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -181,6 +182,7 @@ export function createApp(
   app.use('/api', reportsRouter(ctx));
   app.use('/api', terminalRouter(ctx));
   app.use('/api', uploadRouter(ctx));
+  app.use('/api', achievementsRouter(ctx));
 
   // 管理型界面（库自有）：始终挂载，不依赖界面是否构建过
   app.use(

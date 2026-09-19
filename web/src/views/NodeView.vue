@@ -320,10 +320,12 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { api } from '../api/client.js';
+import { api, isOffline } from '../api/client.js';
 import { useTimerStore } from '../stores/timer.js';
 import { useStarmapStore } from '../stores/starmap.js';
 import { useUiStore } from '../stores/ui.js';
+import { useLocalProgressStore } from '../stores/localProgress.js';
+import { localPaper, gradeLocal } from '../utils/localQuiz.js';
 import { useDevSettings } from '../composables/useDevSettings.js';
 import RichText from '../components/RichText.vue';
 import TermLayers from '../components/TermLayers.vue';
@@ -352,6 +354,7 @@ const router = useRouter();
 const timer = useTimerStore();
 const starmap = useStarmapStore();
 const ui = useUiStore();
+const localProgress = useLocalProgressStore();
 const dev = useDevSettings();
 // 社区类 Tab（讨论/二创/速通）随「社区」模块开关与数据源联动
 watch(
@@ -488,11 +491,18 @@ async function load() {
   try {
     const { card: c, state: s } = await api.nodeDetail(nodeId.value);
     card.value = c;
-    state.value = s;
+    state.value = localProgress.merge(nodeId.value, s);
     starmap.cacheCard(c);
     localStorage.setItem('starmap.recent', c.id);
   } catch (e) {
-    error.value = e.message;
+    // 离线：用缓存的卡片 + 本地成果继续 —— 断网时功能一个都不少
+    const cached = await starmap.cardFor(nodeId.value);
+    if (cached) {
+      card.value = cached;
+      state.value = localProgress.merge(nodeId.value, 'dim');
+    } else {
+      error.value = e.message;
+    }
   } finally {
     loading.value = false;
   }
@@ -521,8 +531,8 @@ function closeTerm(i) {
 // ---- 闯关闭环 ----
 async function startChallenge(mode) {
   pendingMode.value = mode;
-  // 刷题练习不计时，直接开卷；正式闯关/考核需先开启学习倒计时
-  if (mode !== 'practice' && !timer.active) {
+  // 刷题练习不计时；正式闯关/考核需先开启学习倒计时 —— 离线时库不在场，不卡人
+  if (mode !== 'practice' && !timer.active && !isOffline()) {
     timerVisible.value = true; // 先设置倒计时
     return;
   }
@@ -535,15 +545,34 @@ async function onTimerStarted() {
 
 async function openQuiz(mode) {
   quizError.value = '';
+  if (isOffline()) return openLocalQuiz(mode);
   try {
     paper.value = await api.challengeStart(nodeId.value, mode);
     answers.value = {};
     view.value = 'quiz';
   } catch (e) {
+    if (e.code === 'OFFLINE' || e.code === 'NETWORK') return openLocalQuiz(mode);
     if (e.code === 'NO_TIMER') timerVisible.value = true;
     else if (e.code === 'FORBIDDEN_STATE') ui.toast('节点未开放，不可闯关', 'error');
     else ui.toast(e.message, 'error');
   }
+}
+
+// 离线开卷：库不在场，成绩「未认证」（不做任何标记），联网后自动上报。
+// 点亮必须联网完成 —— 它要进的是稀缺荣誉，得由库当场见证。
+function openLocalQuiz(mode) {
+  if (mode === 'exam') {
+    ui.toast('点亮需要联网完成（这样才算已认证）；离线可以先刷题或闯关', 'info', 3600);
+    return;
+  }
+  const p = localPaper(card.value, mode);
+  if (!p) {
+    ui.toast('本站题库尚未缓存：先联网打开一次，之后即可离线使用', 'error', 3600);
+    return;
+  }
+  paper.value = p;
+  answers.value = {};
+  view.value = 'quiz';
 }
 
 function quitQuiz() {
@@ -552,22 +581,33 @@ function quitQuiz() {
 }
 
 async function submit() {
+  const isLocal = Boolean(paper.value?.local);
   // 提交前快照邻域状态，用于通关后提示新解锁节点
   let before = {};
   try {
     const hood = await api.neighborhood(nodeId.value, 1);
     before = Object.fromEntries(hood.nodes.map((n) => [n.id, n.state]));
   } catch {
-    /* 快照失败不阻断提交 */
+    /* 快照失败不阻断提交（离线时必然失败） */
   }
 
   submitting.value = true;
   quizError.value = '';
   try {
-    const r = await api.submitPaper(paper.value.paperId, answers.value);
+    // 本地卷：个人端自己判分，成果先记本地（未认证），联网后自动上报
+    let r;
+    if (isLocal) {
+      r = gradeLocal(paper.value, answers.value);
+      if (r.result === 'passed') {
+        localProgress.record(paper.value.nodeId, 'passed', { passSeconds: r.elapsedSeconds });
+      }
+    } else {
+      r = await api.submitPaper(paper.value.paperId, answers.value);
+    }
     result.value = r;
-    state.value = r.state;
+    state.value = isLocal ? localProgress.merge(nodeId.value, state.value) : r.state;
     view.value = 'result';
+    if (isLocal) ui.toast('离线完成 —— 联网后会自动同步到库', 'info', 3200);
 
     // 收集错题入本地复习队列（答错的题才入列）
     if (r.perQuestion) {

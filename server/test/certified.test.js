@@ -28,9 +28,20 @@ function makeCard(id, { prerequisites = [] } = {}) {
     ],
     terms: { 甲: '定义甲', 乙: '定义乙', 丙: '定义丙' },
     relations: { prerequisites, related: [] },
-    questionBank: [
-      { id: 'q1', type: 'choice', stem: '选择题 1', options: ['对', '错'], answer: 0, explanation: '解析', difficulty: 1 },
-    ],
+    questionBank: [1, 2, 3, 4]
+      .map((n) => ({
+        id: `q${n}`,
+        type: 'choice',
+        stem: `选择题 ${n}`,
+        options: ['对', '错'],
+        answer: 0,
+        explanation: '解析',
+        difficulty: 1,
+      }))
+      .concat([
+        { id: 'q5', type: 'fill', stem: '填空 5', answer: '42', explanation: '解析', difficulty: 1 },
+        { id: 'q6', type: 'fill', stem: '填空 6', answer: '42', explanation: '解析', difficulty: 2 },
+      ]),
     version: 1,
   };
 }
